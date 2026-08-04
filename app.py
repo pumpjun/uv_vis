@@ -52,7 +52,7 @@ st.sidebar.button(
 
 st.sidebar.markdown("---")
 
-# 2. 데이터베이스(염료 종류) 선택 버튼 (Reactive 우선)
+# 2. 데이터베이스(염료 종류) 선택 버튼
 st.sidebar.subheader("📂 데이터베이스 선택")
 col_d1, col_d2 = st.sidebar.columns(2)
 
@@ -78,7 +78,7 @@ db_file = "Final_UV_Data_R.csv" if st.session_state.dye_type == "Reactive" else 
 try:
     df = load_data(db_file)
 except FileNotFoundError:
-    st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다. (데이터 파일이 깃허브에 업로드되었는지 확인해주세요)")
+    st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.")
     st.stop()
 
 # 3. 메뉴별 조작부
@@ -191,6 +191,32 @@ elif st.session_state.menu == "매칭":
                 
                 st.success(f"✅ {st.session_state.dye_type} 데이터베이스로 매칭 분석 완료!")
                 
+                # 먼저 농도 및 톤 시프트를 계산합니다 (col1에 코멘트를 넣기 위함)
+                best_match = top3.index[0]
+                wave_vals = common_wavelengths.values
+                targ_vals = target_data.values
+                match_vals = db_data.loc[best_match].values
+                
+                mask = (wave_vals >= min_wave) & (wave_vals <= max_wave)
+                has_peak = np.any(mask)
+                
+                if has_peak:
+                    range_wave = wave_vals[mask]
+                    
+                    range_targ = targ_vals[mask]
+                    idx_t = np.argmax(range_targ)
+                    p_wave_t = range_wave[idx_t]
+                    p_abs_t = range_targ[idx_t]
+                    
+                    range_match = match_vals[mask]
+                    idx_m = np.argmax(range_match)
+                    p_wave_m = range_wave[idx_m]
+                    p_abs_m = range_match[idx_m]
+                    
+                    conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
+                    wave_shift = p_wave_t - p_wave_m
+
+                # 화면 레이아웃 시작
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
@@ -198,39 +224,33 @@ elif st.session_state.menu == "매칭":
                     for rank, (name, error) in enumerate(top3.items(), 1):
                         st.write(f"**{rank}위:** {name}")
                         st.caption(f"오차율: {error:.5f}")
-                
-                with col2:
-                    best_match = top3.index[0]
-                    fig2, ax2 = plt.subplots(figsize=(8, 4))
                     
-                    wave_vals = common_wavelengths.values
-                    targ_vals = target_data.values
-                    match_vals = db_data.loc[best_match].values
+                    # Top 3 바로 아래에 같은 글씨 크기로 코멘트 삽입
+                    if has_peak:
+                        st.markdown("---")
+                        st.markdown("**💡 실무 분석 코멘트 (1위 대비)**")
+                        
+                        # 농도 코멘트
+                        if conc_diff_pct > 0:
+                            st.write(f"- **농도:** 약 **{conc_diff_pct:.1f}%** 더 진함")
+                        else:
+                            st.write(f"- **농도:** 약 **{abs(conc_diff_pct):.1f}%** 더 연함")
+                            
+                        # 톤 코멘트
+                        if wave_shift > 0:
+                            st.write(f"- **톤(Tone):** 장파장(+{wave_shift:.0f}nm) 이동 (Deep / Dark한 경향)")
+                        elif wave_shift < 0:
+                            st.write(f"- **톤(Tone):** 단파장({wave_shift:.0f}nm) 이동 (Bright / Bright한 경향)")
+                        else:
+                            st.write(f"- **톤(Tone):** 최대 파장 위치 동일 (유사한 톤)")
+
+                with col2:
+                    fig2, ax2 = plt.subplots(figsize=(8, 4))
                     
                     ax2.plot(wave_vals, targ_vals, label="Target (Upload)", linestyle='--', color='black', linewidth=2)
                     ax2.plot(wave_vals, match_vals, label=f"1st Match: {best_match}", color='#ff7f0e', alpha=0.8)
                     
-                    mask = (wave_vals >= min_wave) & (wave_vals <= max_wave)
-                    if np.any(mask):
-                        range_wave = wave_vals[mask]
-                        
-                        # 1위 매칭 분석을 위한 피크 및 농도/톤 비교 계산
-                        range_targ = targ_vals[mask]
-                        idx_t = np.argmax(range_targ)
-                        p_wave_t = range_wave[idx_t]
-                        p_abs_t = range_targ[idx_t]
-                        
-                        range_match = match_vals[mask]
-                        idx_m = np.argmax(range_match)
-                        p_wave_m = range_wave[idx_m]
-                        p_abs_m = range_match[idx_m]
-                        
-                        # 농도 차이 계산 (%) - 최대 흡광도 높이 기준 비율
-                        conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
-                        
-                        # 파장 편차 계산 (nm) - 톤 방향성
-                        wave_shift = p_wave_t - p_wave_m
-                        
+                    if has_peak:
                         ax2.plot(p_wave_t, p_abs_t, "o", color='black', markersize=8)
                         ax2.text(p_wave_t, p_abs_t, f" Target Max: {p_wave_t:.0f}nm\n ({p_abs_t:.2f})", 
                                  fontsize=9, ha='right', va='bottom', color='black', fontweight='bold')
@@ -245,30 +265,6 @@ elif st.session_state.menu == "매칭":
                     ax2.legend()
                     ax2.grid(True, linestyle='--', alpha=0.6)
                     st.pyplot(fig2)
-                
-                # --- 💡 실무형 비교 분석 코멘트 박스 추가 ---
-                st.markdown("---")
-                st.markdown("### 📋 실무 분석 코멘트 (1위 표준 대비 비교)")
-                
-                # 농도 문구 생성
-                if conc_diff_pct > 0:
-                    conc_text = f"약 **+{conc_diff_pct:.1f}% 더 진함** (흡광도가 높음)"
-                else:
-                    conc_text = f"약 **{conc_diff_pct:.1f}% 더 연함** (흡광도가 낮음)"
-                
-                # 톤(파장 편차) 문구 생성
-                if wave_shift > 0:
-                    tone_text = f"장파장 쪽으로 **+{wave_shift:.0f}nm 이동 (Red-shift)** ➔ 묵직하거나 딥한 톤 경향"
-                elif wave_shift < 0:
-                    tone_text = f"단파장 쪽으로 **{wave_shift:.0f}nm 이동 (Blue-shift)** ➔ 브라이트하거나 맑은 톤 경향"
-                else:
-                    tone_text = "표준과 최대 흡수 파장 일치 (동일한 톤)"
-
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.metric(label="📊 추정 농도 편차 (vs 표준)", value=conc_text)
-                with c2:
-                    st.metric(label="🎨 컬러 톤 방향성 (Peak Shift)", value=tone_text)
                 
         except Exception as e:
             st.error(f"파일 분석 오류: {e}")
