@@ -18,7 +18,7 @@ def load_data(file_name):
 if "menu" not in st.session_state:
     st.session_state.menu = "비교" 
 if "dye_type" not in st.session_state:
-    st.session_state.dye_type = "Reactive"  # 초기 설정값을 Reactive로 변경
+    st.session_state.dye_type = "Reactive"
 
 # 콜백 함수들
 def change_menu(menu_name):
@@ -52,11 +52,10 @@ st.sidebar.button(
 
 st.sidebar.markdown("---")
 
-# 2. 데이터베이스(염료 종류) 선택 버튼 (가로로 2개 나란히 배치)
+# 2. 데이터베이스(염료 종류) 선택 버튼 (Reactive 우선)
 st.sidebar.subheader("📂 데이터베이스 선택")
 col_d1, col_d2 = st.sidebar.columns(2)
 
-# 순서 변경: Reactive가 먼저(왼쪽) 오도록 설정
 with col_d1:
     st.button(
         "Reactive", 
@@ -74,16 +73,15 @@ with col_d2:
         args=("Disperse",)
     )
 
-# 선택된 종류에 따라 읽어올 파일 지정
 db_file = "Final_UV_Data_R.csv" if st.session_state.dye_type == "Reactive" else "Final_UV_Data_D.csv"
 
 try:
     df = load_data(db_file)
 except FileNotFoundError:
-    st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.")
+    st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다. (데이터 파일이 깃허브에 업로드되었는지 확인해주세요)")
     st.stop()
 
-# 3. 메뉴별 조작부 (염료 선택 또는 파일 업로드)
+# 3. 메뉴별 조작부
 if st.session_state.menu == "비교":
     st.sidebar.subheader("🎨 염료 선택")
     selected_dyes = st.sidebar.multiselect(
@@ -216,19 +214,26 @@ elif st.session_state.menu == "매칭":
                     if np.any(mask):
                         range_wave = wave_vals[mask]
                         
+                        # 1위 매칭 분석을 위한 피크 및 농도/톤 비교 계산
                         range_targ = targ_vals[mask]
                         idx_t = np.argmax(range_targ)
                         p_wave_t = range_wave[idx_t]
                         p_abs_t = range_targ[idx_t]
                         
-                        ax2.plot(p_wave_t, p_abs_t, "o", color='black', markersize=8)
-                        ax2.text(p_wave_t, p_abs_t, f" Target Max: {p_wave_t:.0f}nm\n ({p_abs_t:.2f})", 
-                                 fontsize=9, ha='right', va='bottom', color='black', fontweight='bold')
-                        
                         range_match = match_vals[mask]
                         idx_m = np.argmax(range_match)
                         p_wave_m = range_wave[idx_m]
                         p_abs_m = range_match[idx_m]
+                        
+                        # 농도 차이 계산 (%) - 최대 흡광도 높이 기준 비율
+                        conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
+                        
+                        # 파장 편차 계산 (nm) - 톤 방향성
+                        wave_shift = p_wave_t - p_wave_m
+                        
+                        ax2.plot(p_wave_t, p_abs_t, "o", color='black', markersize=8)
+                        ax2.text(p_wave_t, p_abs_t, f" Target Max: {p_wave_t:.0f}nm\n ({p_abs_t:.2f})", 
+                                 fontsize=9, ha='right', va='bottom', color='black', fontweight='bold')
                         
                         ax2.plot(p_wave_m, p_abs_m, "o", color='#ff7f0e', markersize=8)
                         ax2.text(p_wave_m, p_abs_m, f" Match Max: {p_wave_m:.0f}nm\n ({p_abs_m:.2f}) ", 
@@ -240,6 +245,30 @@ elif st.session_state.menu == "매칭":
                     ax2.legend()
                     ax2.grid(True, linestyle='--', alpha=0.6)
                     st.pyplot(fig2)
+                
+                # --- 💡 실무형 비교 분석 코멘트 박스 추가 ---
+                st.markdown("---")
+                st.markdown("### 📋 실무 분석 코멘트 (1위 표준 대비 비교)")
+                
+                # 농도 문구 생성
+                if conc_diff_pct > 0:
+                    conc_text = f"약 **+{conc_diff_pct:.1f}% 더 진함** (흡광도가 높음)"
+                else:
+                    conc_text = f"약 **{conc_diff_pct:.1f}% 더 연함** (흡광도가 낮음)"
+                
+                # 톤(파장 편차) 문구 생성
+                if wave_shift > 0:
+                    tone_text = f"장파장 쪽으로 **+{wave_shift:.0f}nm 이동 (Red-shift)** ➔ 묵직하거나 딥한 톤 경향"
+                elif wave_shift < 0:
+                    tone_text = f"단파장 쪽으로 **{wave_shift:.0f}nm 이동 (Blue-shift)** ➔ 브라이트하거나 맑은 톤 경향"
+                else:
+                    tone_text = "표준과 최대 흡수 파장 일치 (동일한 톤)"
+
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.metric(label="📊 추정 농도 편차 (vs 표준)", value=conc_text)
+                with c2:
+                    st.metric(label="🎨 컬러 톤 방향성 (Peak Shift)", value=tone_text)
                 
         except Exception as e:
             st.error(f"파일 분석 오류: {e}")
