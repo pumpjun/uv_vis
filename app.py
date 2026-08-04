@@ -26,7 +26,6 @@ def change_dye_type(dye_name):
 # ==========================================
 st.sidebar.caption("✨ Created by tskwon")
 st.sidebar.title("🧪 UV-Vis 분석기")
-st.sidebar.markdown("---")
 
 # 1. 데이터베이스(염료 종류) 선택
 st.sidebar.subheader("📂 데이터베이스 선택")
