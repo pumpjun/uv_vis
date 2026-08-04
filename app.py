@@ -18,7 +18,7 @@ def load_data(file_name):
 if "menu" not in st.session_state:
     st.session_state.menu = "비교" 
 if "dye_type" not in st.session_state:
-    st.session_state.dye_type = "Disperse"
+    st.session_state.dye_type = "Reactive"  # 초기 설정값을 Reactive로 변경
 
 # 콜백 함수들
 def change_menu(menu_name):
@@ -56,15 +56,8 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("📂 데이터베이스 선택")
 col_d1, col_d2 = st.sidebar.columns(2)
 
+# 순서 변경: Reactive가 먼저(왼쪽) 오도록 설정
 with col_d1:
-    st.button(
-        "Disperse", 
-        use_container_width=True, 
-        type="primary" if st.session_state.dye_type == "Disperse" else "secondary",
-        on_click=change_dye_type, 
-        args=("Disperse",)
-    )
-with col_d2:
     st.button(
         "Reactive", 
         use_container_width=True, 
@@ -72,9 +65,17 @@ with col_d2:
         on_click=change_dye_type, 
         args=("Reactive",)
     )
+with col_d2:
+    st.button(
+        "Disperse", 
+        use_container_width=True, 
+        type="primary" if st.session_state.dye_type == "Disperse" else "secondary",
+        on_click=change_dye_type, 
+        args=("Disperse",)
+    )
 
 # 선택된 종류에 따라 읽어올 파일 지정
-db_file = "Final_UV_Data_D.csv" if st.session_state.dye_type == "Disperse" else "Final_UV_Data_R.csv"
+db_file = "Final_UV_Data_R.csv" if st.session_state.dye_type == "Reactive" else "Final_UV_Data_D.csv"
 
 try:
     df = load_data(db_file)
