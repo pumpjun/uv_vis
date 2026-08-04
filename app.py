@@ -14,6 +14,15 @@ def load_data(file_name):
     df.columns = df.columns.astype(float)
     return df
 
+# --- 사용자 지정 색상 함수 (1:검정, 2:빨강, 3:파랑, 4:보라) ---
+def get_custom_color(index):
+    colors = ['black', 'red', 'blue', 'purple']
+    if index < len(colors):
+        return colors[index]
+    else:
+        # 5번째부터는 기본 제공 색상 팔레트 사용
+        return plt.cm.tab10(index - len(colors))
+
 # --- 상태 저장 (초기 화면 및 기본 데이터베이스 설정) ---
 if "menu" not in st.session_state:
     st.session_state.menu = "비교" 
@@ -127,12 +136,13 @@ if st.session_state.menu == "비교":
         
         fig, ax = plt.subplots(figsize=(12, 5))
         
-        for dye in selected_dyes:
+        for i, dye in enumerate(selected_dyes):
             wavelengths = df.columns.values
             absorbance = df.loc[dye].values
             
-            line = ax.plot(wavelengths, absorbance, label=dye)
-            color = line[0].get_color() 
+            # 지정된 색상 불러오기
+            color = get_custom_color(i)
+            ax.plot(wavelengths, absorbance, label=dye, color=color, linewidth=2)
             
             mask = (wavelengths >= min_wave) & (wavelengths <= max_wave)
             if np.any(mask):
@@ -191,31 +201,6 @@ elif st.session_state.menu == "매칭":
                 
                 st.success(f"✅ {st.session_state.dye_type} 데이터베이스로 매칭 분석 완료!")
                 
-                # 먼저 농도 및 피크를 계산합니다 (col1에 넣기 위함)
-                best_match = top3.index[0]
-                wave_vals = common_wavelengths.values
-                targ_vals = target_data.values
-                match_vals = db_data.loc[best_match].values
-                
-                mask = (wave_vals >= min_wave) & (wave_vals <= max_wave)
-                has_peak = np.any(mask)
-                
-                if has_peak:
-                    range_wave = wave_vals[mask]
-                    
-                    range_targ = targ_vals[mask]
-                    idx_t = np.argmax(range_targ)
-                    p_wave_t = range_wave[idx_t]
-                    p_abs_t = range_targ[idx_t]
-                    
-                    range_match = match_vals[mask]
-                    idx_m = np.argmax(range_match)
-                    p_wave_m = range_wave[idx_m]
-                    p_abs_m = range_match[idx_m]
-                    
-                    conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
-
-                # 화면 레이아웃 시작
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
@@ -224,46 +209,80 @@ elif st.session_state.menu == "매칭":
                         st.write(f"**{rank}위:** {name}")
                         st.caption(f"오차율: {error:.5f}")
                     
-                    # Top 3 바로 아래에 코멘트와 표 삽입
+                    st.markdown("---")
+                    
+                    # 💡 사용자 수동 선택 드롭다운 (기본값은 1위 매칭 염료)
+                    best_match = top3.index[0]
+                    db_dyes_list = df.index.tolist()
+                    default_idx = db_dyes_list.index(best_match)
+                    
+                    selected_match = st.selectbox(
+                        "📌 비교할 DB 염료 수동 선택 (기본값: 자동 1위)", 
+                        options=db_dyes_list, 
+                        index=default_idx
+                    )
+                    
+                    wave_vals = common_wavelengths.values
+                    targ_vals = target_data.values
+                    match_vals = db_data.loc[selected_match].values
+                    
+                    mask = (wave_vals >= min_wave) & (wave_vals <= max_wave)
+                    has_peak = np.any(mask)
+                    
                     if has_peak:
-                        st.markdown("---")
+                        range_wave = wave_vals[mask]
+                        
+                        range_targ = targ_vals[mask]
+                        idx_t = np.argmax(range_targ)
+                        p_wave_t = range_wave[idx_t]
+                        p_abs_t = range_targ[idx_t]
+                        
+                        range_match = match_vals[mask]
+                        idx_m = np.argmax(range_match)
+                        p_wave_m = range_wave[idx_m]
+                        p_abs_m = range_match[idx_m]
+                        
+                        conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
+                        
                         st.markdown("**💡 실무 분석 요약**")
                         
-                        # 1. 농도 코멘트
+                        # 농도 코멘트
                         if conc_diff_pct > 0:
-                            st.write(f"- **농도:** 1위 염료 대비 약 **{conc_diff_pct:.1f}%** 더 진함")
+                            st.write(f"- **농도:** 선택된 염료 대비 약 **{conc_diff_pct:.1f}%** 더 진함")
                         else:
-                            st.write(f"- **농도:** 1위 염료 대비 약 **{abs(conc_diff_pct):.1f}%** 더 연함")
+                            st.write(f"- **농도:** 선택된 염료 대비 약 **{abs(conc_diff_pct):.1f}%** 더 연함")
                         
-                        st.write("") # 약간의 여백
+                        st.write("") 
                         
-                        # 2. 피크 요약 표(Table) 생성
+                        # 피크 요약 표(Table)
                         summary_data = {
-                            "Name": ["Target (Upload)", best_match],
+                            "Name": ["Target (Upload)", selected_match],
                             "Peaks(nm)": [f"{p_wave_t:.1f}", f"{p_wave_m:.1f}"],
                             "Abs(AU)": [f"{p_abs_t:.5f}", f"{p_abs_m:.5f}"]
                         }
                         df_summary = pd.DataFrame(summary_data)
-                        df_summary.index = [1, 2]  # 행 번호를 1, 2로 지정
+                        df_summary.index = [1, 2] 
                         
                         st.table(df_summary)
 
                 with col2:
                     fig2, ax2 = plt.subplots(figsize=(8, 4))
                     
-                    ax2.plot(wave_vals, targ_vals, label="Target (Upload)", linestyle='--', color='black', linewidth=2)
-                    ax2.plot(wave_vals, match_vals, label=f"1st Match: {best_match}", color='#ff7f0e', alpha=0.8)
+                    # Target을 1번 색상(검정), 실선으로 변경
+                    ax2.plot(wave_vals, targ_vals, label="Target (Upload)", color='black', linewidth=2)
+                    # 선택된 염료를 2번 색상(빨강), 실선으로 변경
+                    ax2.plot(wave_vals, match_vals, label=f"Match: {selected_match}", color='red', linewidth=2, alpha=0.8)
                     
                     if has_peak:
                         ax2.plot(p_wave_t, p_abs_t, "o", color='black', markersize=8)
                         ax2.text(p_wave_t, p_abs_t, f" Target Max: {p_wave_t:.0f}nm\n ({p_abs_t:.2f})", 
                                  fontsize=9, ha='right', va='bottom', color='black', fontweight='bold')
                         
-                        ax2.plot(p_wave_m, p_abs_m, "o", color='#ff7f0e', markersize=8)
+                        ax2.plot(p_wave_m, p_abs_m, "o", color='red', markersize=8)
                         ax2.text(p_wave_m, p_abs_m, f" Match Max: {p_wave_m:.0f}nm\n ({p_abs_m:.2f}) ", 
-                                 fontsize=9, ha='left', va='bottom', color='#ff7f0e', fontweight='bold')
+                                 fontsize=9, ha='left', va='bottom', color='red', fontweight='bold')
 
-                    ax2.set_title(f"Target vs Best Match ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)")
+                    ax2.set_title(f"Target vs {selected_match} ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)")
                     ax2.set_xlabel("Wavelength (nm)")
                     ax2.set_ylabel("Absorbance (AU)")
                     ax2.legend()
