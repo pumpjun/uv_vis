@@ -30,7 +30,7 @@ def change_menu(menu_name):
 # ==========================================
 # 👈 왼쪽 사이드바 (메뉴 및 조작부)
 # ==========================================
-st.sidebar.caption("✨ Created by tskwon")
+st.sidebar.caption("✨ Created by tskwon")
 st.sidebar.title("🧪 UV-Vis 분석기")
 
 # 1. 메뉴 버튼 (선택된 메뉴는 primary 타입으로 색상 강조)
@@ -60,13 +60,6 @@ if st.session_state.menu == "비교":
         "비교할 염료를 선택하세요:", 
         df.index.tolist()
     )
-    
-    st.sidebar.markdown("<br>**최대 피크 탐색 구간 (nm)**", unsafe_allow_html=True)
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        min_wave = st.number_input("최소 파장", value=300, step=10)
-    with col2:
-        max_wave = st.number_input("최대 파장", value=800, step=10)
 
 elif st.session_state.menu == "매칭":
     st.sidebar.subheader("📂 파일 업로드")
@@ -84,7 +77,7 @@ if st.session_state.menu == "비교":
     st.title("📊 염료 스펙트럼 다중 비교")
     
     if selected_dyes:
-        st.subheader(f"📈 스펙트럼 그래프 ({min_wave}nm ~ {max_wave}nm 최대 피크)")
+        st.subheader("📈 스펙트럼 그래프 (최대 피크 표시)")
         
         fig, ax = plt.subplots(figsize=(12, 5))
         
@@ -96,21 +89,15 @@ if st.session_state.menu == "비교":
             line = ax.plot(wavelengths, absorbance, label=dye)
             color = line[0].get_color() 
             
-            # 사용자가 지정한 구간 안에서만 데이터 자르기
-            mask = (wavelengths >= min_wave) & (wavelengths <= max_wave)
-            if np.any(mask):
-                range_wave = wavelengths[mask]
-                range_abs = absorbance[mask]
-                
-                # 그 구간 안에서 가장 높은 흡광도(최대 피크) 위치 찾기
-                max_idx = np.argmax(range_abs)
-                peak_wave = range_wave[max_idx]
-                peak_abs = range_abs[max_idx]
-                
-                # 최대 피크 표시
-                ax.plot(peak_wave, peak_abs, "o", color=color, markersize=8)
-                ax.text(peak_wave, peak_abs, f" Max: {peak_wave:.0f}nm\n ({peak_abs:.2f})", 
-                        fontsize=10, ha='left', va='bottom', color=color, fontweight='bold')
+            # 전체 파장 구간 중 가장 높은 흡광도(최대 피크) 위치 찾기
+            max_idx = np.argmax(absorbance)
+            peak_wave = wavelengths[max_idx]
+            peak_abs = absorbance[max_idx]
+            
+            # 최대 피크 표시
+            ax.plot(peak_wave, peak_abs, "o", color=color, markersize=8)
+            ax.text(peak_wave, peak_abs, f" Max: {peak_wave:.0f}nm\n ({peak_abs:.2f})", 
+                    fontsize=10, ha='left', va='bottom', color=color, fontweight='bold')
 
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel("Absorbance (AU)")
