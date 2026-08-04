@@ -191,7 +191,7 @@ elif st.session_state.menu == "매칭":
                 
                 st.success(f"✅ {st.session_state.dye_type} 데이터베이스로 매칭 분석 완료!")
                 
-                # 먼저 농도 및 톤 시프트를 계산합니다 (col1에 코멘트를 넣기 위함)
+                # 먼저 농도 및 피크를 계산합니다 (col1에 넣기 위함)
                 best_match = top3.index[0]
                 wave_vals = common_wavelengths.values
                 targ_vals = target_data.values
@@ -214,7 +214,6 @@ elif st.session_state.menu == "매칭":
                     p_abs_m = range_match[idx_m]
                     
                     conc_diff_pct = ((p_abs_t - p_abs_m) / p_abs_m) * 100
-                    wave_shift = p_wave_t - p_wave_m
 
                 # 화면 레이아웃 시작
                 col1, col2 = st.columns([1, 2])
@@ -225,24 +224,29 @@ elif st.session_state.menu == "매칭":
                         st.write(f"**{rank}위:** {name}")
                         st.caption(f"오차율: {error:.5f}")
                     
-                    # Top 3 바로 아래에 같은 글씨 크기로 코멘트 삽입
+                    # Top 3 바로 아래에 코멘트와 표 삽입
                     if has_peak:
                         st.markdown("---")
-                        st.markdown("**💡 실무 분석 코멘트 (1위 대비)**")
+                        st.markdown("**💡 실무 분석 요약**")
                         
-                        # 농도 코멘트
+                        # 1. 농도 코멘트
                         if conc_diff_pct > 0:
-                            st.write(f"- **농도:** 약 **{conc_diff_pct:.1f}%** 더 진함")
+                            st.write(f"- **농도:** 1위 염료 대비 약 **{conc_diff_pct:.1f}%** 더 진함")
                         else:
-                            st.write(f"- **농도:** 약 **{abs(conc_diff_pct):.1f}%** 더 연함")
-                            
-                        # 톤 코멘트
-                        if wave_shift > 0:
-                            st.write(f"- **톤(Tone):** 장파장(+{wave_shift:.0f}nm) 이동 (Deep / Dark한 경향)")
-                        elif wave_shift < 0:
-                            st.write(f"- **톤(Tone):** 단파장({wave_shift:.0f}nm) 이동 (Bright / Bright한 경향)")
-                        else:
-                            st.write(f"- **톤(Tone):** 최대 파장 위치 동일 (유사한 톤)")
+                            st.write(f"- **농도:** 1위 염료 대비 약 **{abs(conc_diff_pct):.1f}%** 더 연함")
+                        
+                        st.write("") # 약간의 여백
+                        
+                        # 2. 피크 요약 표(Table) 생성
+                        summary_data = {
+                            "Name": ["Target (Upload)", best_match],
+                            "Peaks(nm)": [f"{p_wave_t:.1f}", f"{p_wave_m:.1f}"],
+                            "Abs(AU)": [f"{p_abs_t:.5f}", f"{p_abs_m:.5f}"]
+                        }
+                        df_summary = pd.DataFrame(summary_data)
+                        df_summary.index = [1, 2]  # 행 번호를 1, 2로 지정
+                        
+                        st.table(df_summary)
 
                 with col2:
                     fig2, ax2 = plt.subplots(figsize=(8, 4))
