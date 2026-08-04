@@ -206,7 +206,7 @@ if len(plot_items) > 0:
                 first_match_max_abs = p_abs
                 match_name_for_conc = name
 
-    ax.set_title(f"스펙트럼 비교 ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)")
+    ax.set_title(f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)")
     ax.set_xlabel("Wavelength (nm)")
     ax.set_ylabel("Absorbance (AU)")
     ax.legend()
