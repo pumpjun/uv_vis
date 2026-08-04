@@ -7,20 +7,25 @@ import io
 # --- 페이지 기본 설정 ---
 st.set_page_config(page_title="UV-Vis 분석기", layout="wide")
 
-# --- 데이터 불러오기 (선택한 파일 이름에 따라 다르게 불러옴) ---
+# --- 데이터 불러오기 ---
 @st.cache_data
 def load_data(file_name):
     df = pd.read_csv(file_name, index_col=0)
     df.columns = df.columns.astype(float)
     return df
 
-# --- 상태 저장 (초기 화면 설정) ---
+# --- 상태 저장 (초기 화면 및 기본 데이터베이스 설정) ---
 if "menu" not in st.session_state:
     st.session_state.menu = "비교" 
+if "dye_type" not in st.session_state:
+    st.session_state.dye_type = "Disperse"
 
-# 메뉴 변경을 즉시 반영하기 위한 콜백 함수
+# 콜백 함수들
 def change_menu(menu_name):
     st.session_state.menu = menu_name
+
+def change_dye_type(dye_name):
+    st.session_state.dye_type = dye_name
 
 # ==========================================
 # 👈 왼쪽 사이드바 (메뉴 및 조작부)
@@ -47,18 +52,30 @@ st.sidebar.button(
 
 st.sidebar.markdown("---")
 
-# 2. 데이터베이스(염료 종류) 선택
+# 2. 데이터베이스(염료 종류) 선택 버튼 (가로로 2개 나란히 배치)
 st.sidebar.subheader("📂 데이터베이스 선택")
-dye_type = st.sidebar.radio(
-    "염료 종류를 선택하세요:", 
-    ["Disperse", "Reactive"], 
-    horizontal=True
-)
+col_d1, col_d2 = st.sidebar.columns(2)
+
+with col_d1:
+    st.button(
+        "Disperse", 
+        use_container_width=True, 
+        type="primary" if st.session_state.dye_type == "Disperse" else "secondary",
+        on_click=change_dye_type, 
+        args=("Disperse",)
+    )
+with col_d2:
+    st.button(
+        "Reactive", 
+        use_container_width=True, 
+        type="primary" if st.session_state.dye_type == "Reactive" else "secondary",
+        on_click=change_dye_type, 
+        args=("Reactive",)
+    )
 
 # 선택된 종류에 따라 읽어올 파일 지정
-db_file = "Final_UV_Data_D.csv" if dye_type == "Disperse" else "Final_UV_Data_R.csv"
+db_file = "Final_UV_Data_D.csv" if st.session_state.dye_type == "Disperse" else "Final_UV_Data_R.csv"
 
-# 데이터 불러오기 및 예외 처리
 try:
     df = load_data(db_file)
 except FileNotFoundError:
@@ -81,7 +98,7 @@ elif st.session_state.menu == "매칭":
 
 st.sidebar.markdown("---")
 
-# 4. 공통 스펙트럼 설정 (맨 아래 배치)
+# 4. 공통 스펙트럼 설정
 st.sidebar.subheader("⚙️ 스펙트럼 설정")
 st.sidebar.markdown("**최대 피크 탐색 구간 (nm)**")
 col1, col2 = st.sidebar.columns(2)
@@ -173,7 +190,7 @@ elif st.session_state.menu == "매칭":
                 errors = ((db_data - target_data) ** 2).mean(axis=1)
                 top3 = errors.sort_values().head(3)
                 
-                st.success(f"✅ {dye_type} 데이터베이스로 매칭 분석 완료!")
+                st.success(f"✅ {st.session_state.dye_type} 데이터베이스로 매칭 분석 완료!")
                 
                 col1, col2 = st.columns([1, 2])
                 
