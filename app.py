@@ -4,19 +4,118 @@ import numpy as np
 import matplotlib.pyplot as plt
 import io
 import base64
+import os
 
 # --- 페이지 기본 설정 ---
-st.set_page_config(page_title="UV-Vis 분석기", layout="wide")
+st.set_page_config(page_title="Ohyoung UV-Vis", layout="wide", initial_sidebar_state="expanded")
 
-# ⭐️ Material Icons 폰트 로드 및 기본 수직 정렬 CSS 추가
-st.markdown("""
+# ==========================================
+# ⭐️ 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS (강력한 사이드바 간격 제어)
+# ==========================================
+# 1. 로고 이미지를 Base64로 인코딩
+logo_html = ""
+if os.path.exists("logo.png"):
+    with open("logo.png", "rb") as f:
+        logo_base64 = base64.b64encode(f.read()).decode("utf-8")
+    logo_html = f'<img src="data:image/png;base64,{logo_base64}">'
+else:
+    logo_html = '<span style="font-size:24px; margin-right:10px;">🧪</span>'
+
+# 2. 고정 메뉴바 및 사이드바 초밀착 CSS 주입
+st.markdown(f"""
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    .material-symbols-outlined {
+    /* 1. Streamlit 기본 상단 헤더 숨기기 */
+    [data-testid="stHeader"] {{
+        display: none !important;
+    }}
+    
+    /* 2. 사이드바 접기 버튼 및 숨겨진 헤더 공간 완전히 삭제 */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarHeader"] {{
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }}
+    
+    /* 3. 상단 고정 메뉴바 디자인 */
+    #custom-top-bar {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 60px;
+        background-color: #ffffff;
+        border-bottom: 2px solid #f0f2f6;
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        z-index: 999999;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }}
+    
+    #custom-top-bar img {{
+        height: 35px;
+        margin-right: 15px;
+    }}
+    
+    #custom-top-bar h2 {{
+        margin: 0;
+        padding: 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: #1f2937;
+        line-height: 1;
+    }}
+
+    /* 4. 본문 상단 여백 설정 */
+    .block-container {{
+        padding-top: 80px !important; 
+    }}
+    
+    /* 5. 🔥 사이드바 간격 강제 축소 및 맨 위로 밀착 🔥 */
+    [data-testid="stSidebar"] {{
+        padding-top: 60px !important; /* 커스텀 메뉴바 높이만큼만 띄움 */
+    }}
+    
+    /* 사이드바 내부 패딩 최소화 (맨 위로 붙이기) */
+    [data-testid="stSidebarUserContent"] {{
+        padding-top: 10px !important; 
+        padding-bottom: 10px !important;
+    }}
+    
+    /* 스트림릿 기본 위젯 간격(gap) 강제 축소 */
+    [data-testid="stSidebarUserContent"] > div {{
+        gap: 0.5rem !important; 
+    }}
+
+    /* 각 컴포넌트 사이의 쓸데없는 외부 여백 차단 */
+    div.element-container {{
+        margin-bottom: 0 !important;
+    }}
+    
+    /* 사이드바 내부 텍스트 인풋 등 기본 폼 패딩 줄이기 */
+    .stTextInput>div, .stMultiSelect>div, .stFileUploader>div {{
+        padding-bottom: 0 !important;
+    }}
+
+    /* 머티리얼 아이콘 정렬 */
+    .material-symbols-outlined {{
         line-height: 1 !important;
-    }
+        vertical-align: middle;
+    }}
 </style>
+
+<!-- 상단 메뉴바 HTML 렌더링 -->
+<div id="custom-top-bar">
+    {logo_html}
+    <h2>Ohyoung UV-Vis</h2>
+</div>
 """, unsafe_allow_html=True)
+
 
 # --- 데이터 불러오기 ---
 @st.cache_data
@@ -32,18 +131,14 @@ if "dye_type" not in st.session_state:
 def change_dye_type(dye_name):
     st.session_state.dye_type = dye_name
 
+
 # ==========================================
 # 왼쪽 사이드바 (조작부)
 # ==========================================
-st.sidebar.caption("Created by tskwon :material/science:")
-st.sidebar.markdown(
-    "<h2 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='font-size:28px; margin-right:8px;'>science</span>UV-Vis 분석기</h2>", 
-    unsafe_allow_html=True
-)
 
-# 1. 데이터베이스(염료 종류) 선택
+# 1. 데이터베이스(염료 종류) 선택 (간격 0으로 밀착)
 st.sidebar.markdown(
-    "<h3 style='display: flex; align-items: center; margin-top:20px;'><span class='material-symbols-outlined' style='margin-right:8px;'>folder_open</span>데이터베이스 선택</h3>", 
+    "<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>folder_open</span>데이터베이스 선택</h3>", 
     unsafe_allow_html=True
 )
 col_d1, col_d2 = st.sidebar.columns(2)
@@ -75,7 +170,7 @@ except FileNotFoundError:
 
 # 2. 파일 업로드 및 타겟 이름 설정
 st.sidebar.markdown(
-    "<h3 style='display: flex; align-items: center; margin-top:20px;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", 
+    "<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", 
     unsafe_allow_html=True
 )
 uploaded_file = st.sidebar.file_uploader(
@@ -89,7 +184,7 @@ if uploaded_file is not None:
 
 # 3. 비교 염료 수동 선택
 st.sidebar.markdown(
-    "<h3 style='display: flex; align-items: center; margin-top:20px;'><span class='material-symbols-outlined' style='margin-right:8px;'>palette</span>비교 염료 선택</h3>", 
+    "<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>palette</span>비교 염료 선택</h3>", 
     unsafe_allow_html=True
 )
 max_sel = 3 if uploaded_file is not None else 4
@@ -104,12 +199,12 @@ if uploaded_file is None and not selected_dyes:
     st.sidebar.info("타겟 파일을 올리거나 비교할 염료를 선택하세요.", icon=":material/touch_app:")
 
 # 4. 공통 스펙트럼 설정
-st.sidebar.markdown("---")
+st.sidebar.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
 st.sidebar.markdown(
-    "<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>tune</span>스펙트럼 설정</h3>", 
+    "<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>tune</span>스펙트럼 설정</h3>", 
     unsafe_allow_html=True
 )
-st.sidebar.markdown("**최대 피크 탐색 구간 (nm)**")
+st.sidebar.markdown("<div style='margin-bottom: 5px;'><b>최대 피크 탐색 구간 (nm)</b></div>", unsafe_allow_html=True)
 col1, col2 = st.sidebar.columns(2)
 
 with col1:
@@ -125,12 +220,16 @@ except ValueError:
     min_wave = 300.0
     max_wave = 800.0
 
+# 5. 작성자 캡션 (사이드바 맨 밑으로 배치)
+st.sidebar.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+st.sidebar.caption("Created by tskwon :material/science:")
+
 
 # ==========================================
 # 오른쪽 메인 화면 (결과 출력부)
 # ==========================================
 
-# 타이틀 및 인쇄 버튼 배치할 뼈대 미리 만들기
+# 타이틀 및 인쇄 버튼 배치
 col_title, col_btn = st.columns([4, 1])
 with col_title:
     st.markdown(
@@ -223,7 +322,7 @@ if len(plot_items) > 0:
     fig.savefig(buf, format="png", bbox_inches='tight', dpi=300)
     img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     
-    # 2. 농도 분석 텍스트 사전 생성 (웹용 & 인쇄용)
+    # 2. 농도 분석 텍스트 사전 생성
     conc_summary_web = ""
     conc_summary_print = ""
     if target_max_abs is not None and first_match_max_abs is not None:
@@ -235,10 +334,10 @@ if len(plot_items) > 0:
             conc_summary_web = f"- **농도 분석:** {target_name}이가 {match_name_for_conc} 대비 약 **{abs(conc_diff_pct):.1f}%** 더 연합니다."
             conc_summary_print = f"<b>농도 분석:</b> {target_name}이 {match_name_for_conc} 대비 약 <b>{abs(conc_diff_pct):.1f}%</b> 더 연합니다."
     
-    # 3. 웹 화면 출력 (좌표/우그래프 정상 배치)
+    # 3. 웹 화면 출력
     col_left, col_right = st.columns([1, 2])
     with col_right:
-        st.pyplot(fig) # 웹에 렌더링
+        st.pyplot(fig)
         
     with col_left:
         st.markdown(
@@ -269,7 +368,6 @@ if len(plot_items) > 0:
         table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Abs(AU)'][idx]}</td>"
         table_rows_html += "</tr>"
 
-    # 인쇄용 농도 분석 박스 HTML (내용이 있을 때만 생성)
     summary_box_html = ""
     if conc_summary_print:
         summary_box_html = f"""
