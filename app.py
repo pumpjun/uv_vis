@@ -173,9 +173,11 @@ st.sidebar.markdown(
     "<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", 
     unsafe_allow_html=True
 )
+
+# 💡 오직 .sd 확장자만 허용하도록 변경
 uploaded_file = st.sidebar.file_uploader(
-    "측정된 원본 CSV 또는 SD 파일을 올려주세요.", 
-    type=['csv', 'sd']
+    "측정된 원본 SD 파일을 올려주세요.", 
+    type=['sd']
 )
 
 target_name = "Target (Upload)"
@@ -244,68 +246,60 @@ best_match = None
 
 if uploaded_file is not None:
     try:
+        import struct
         file_bytes = uploaded_file.getvalue()
-        file_name = uploaded_file.name.lower()
         
-        # ----------------------------------------------------
-        # 1. SD 파일인 경우 (업로드된 바이너리 직접 해독)
-        # ----------------------------------------------------
-        if file_name.endswith('.sd'):
-            import struct
-            
-            # Agilent 기본 파장 범위 (190nm ~ 1100nm)
-            wavelengths = list(range(190, 1101))
-            spectrum_bytes_length = len(wavelengths) * 8
-            
-            # 바이너리 파일 내부의 흡광도 데이터 시작을 알리는 헤더 패턴
-            headers = {
-                b'\x28\x00\x41\x00\x55\x00\x29\x00': 17, # '( A U ) '
-                b'\x28\x41\x55\x29\x00': 5             # '(AU) '
-            }
-            
-            header_found = None
-            spacing = None
-            for h, s in headers.items():
-                if file_bytes.find(h) != -1:
-                    header_found = h
-                    spacing = s
-                    break
-                    
-            if not header_found:
-                st.error("SD 파일에서 흡광도 데이터를 찾을 수 없습니다.", icon=":material/error:")
-            else:
-                # 데이터가 시작되는 정확한 위치 계산
-                header_idx = file_bytes.find(header_found)
-                start_idx = header_idx + spacing
-                end_idx = start_idx + spectrum_bytes_length
+        # Agilent 기본 파장 범위 (190nm ~ 1100nm)
+        wavelengths = list(range(190, 1101))
+        spectrum_bytes_length = len(wavelengths) * 8
+        
+        # 바이너리 파일 내부의 흡광도 데이터 시작을 알리는 헤더 패턴
+        headers = {
+            b'\x28\x00\x41\x00\x55\x00\x29\x00': 17, # '( A U ) '
+            b'\x28\x41\x55\x29\x00': 5             # '(AU) '
+        }
+        
+        header_found = None
+        spacing = None
+        for h, s in headers.items():
+            if file_bytes.find(h) != -1:
+                header_found = h
+                spacing = s
+                break
                 
-                # 순수 흡광도 바이너리 데이터 추출
-                spectrum_data = file_bytes[start_idx:end_idx]
-                
-                # 리틀엔디안 배정밀도 실수(<d)로 완벽하게 변환
-                absorbances = [val for val, in struct.iter_unpack('<d', spectrum_data)]
-                
-                # CSV에서 읽어오는 형태와 100% 동일한 Pandas Series로 변환
-                target_series = pd.Series(absorbances, index=wavelengths)
-                target_series.index.name = "Wavelength"
+        if not header_found:
+            st.error("SD 파일에서 흡광도 데이터를 찾을 수 없습니다. 올바른 형식의 파일인지 확인해주세요.", icon=":material/error:")
+        else:
+            # 데이터 시작 위치 탐색
+            header_idx = file_bytes.find(header_found)
+            start_idx = header_idx + spacing
+            end_idx = start_idx + spectrum_bytes_length
+            
+            # 순수 흡광도 데이터 추출 및 실수로 변환
+            spectrum_data = file_bytes[start_idx:end_idx]
+            absorbances = [val for val, in struct.iter_unpack('<d', spectrum_data)]
+            
+            # 그래프 및 분석을 위한 Pandas Series 생성
+            target_series = pd.Series(absorbances, index=wavelengths)
+            target_series.index.name = "Wavelength"
 
-        # ----------------------------------------------------
-        # 2. 기존 CSV 파일인 경우
-        # ----------------------------------------------------
-        elif file_name.endswith('.csv'):
-            encodings = ['utf-8', 'utf-16', 'utf-16-le', 'cp949', 'euc-kr']
-            for enc in encodings:
-                try:
-                    target_df = pd.read_csv(io.BytesIO(file_bytes), encoding=enc, usecols=[0, 1])
-                    target_df.columns = ["Wavelength", "Absorbance"]
-                    target_df["Wavelength"] = pd.to_numeric(target_df["Wavelength"], errors="coerce")
-                    target_df["Absorbance"] = pd.to_numeric(target_df["Absorbance"], errors="coerce")
-                    target_df.dropna(inplace=True)
-                    target_df.set_index("Wavelength", inplace=True)
-                    target_series = target_df["Absorbance"]
-                    break 
-                except Exception:
-                    continue
+        # 데이터가 정상적으로 추출되었을 때 매칭 및 그래프 로직 실행
+        if target_series is not None and not target_series.empty:
+            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
+            
+            # DB와 공통 파장 추출하여 오차율 계산
+            common_wavelengths = df.columns.intersection(target_series.index)
+            db_data = df[common_wavelengths]
+            t_data = target_series[common_wavelengths]
+            
+            errors = ((db_data - t_data) ** 2).mean(axis=1)
+            top3 = errors.sort_values().head(3)
+            best_match = top3.index[0]
+            
+            st.success(f"자동 매칭 분석 완료! (1위: **{best_match}**)", icon=":material/check_circle:")
+            
+    except Exception as e:
+        st.error(f"파일 분석 중 오류가 발생했습니다: {e}", icon=":material/error:")
 
         # ----------------------------------------------------
         # 3. 데이터 시각화 및 자동 매칭 (이 부분은 기존과 동일)
