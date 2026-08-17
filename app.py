@@ -174,8 +174,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 uploaded_file = st.sidebar.file_uploader(
-    "측정된 원본 CSV 파일을 올려주세요.", 
-    type=['csv']
+    "측정된 원본 CSV 또는 SD 파일을 올려주세요.", 
+    type=['csv', 'sd']
 )
 
 target_name = "Target (Upload)"
@@ -244,20 +244,60 @@ best_match = None
 
 if uploaded_file is not None:
     try:
+        # 업로드된 파일의 순수 바이너리 데이터를 메모리로 가져옵니다.
         file_bytes = uploaded_file.getvalue()
-        encodings = ['utf-8', 'utf-16', 'utf-16-le', 'cp949', 'euc-kr']
-        for enc in encodings:
-            try:
-                target_df = pd.read_csv(io.BytesIO(file_bytes), encoding=enc, usecols=[0, 1])
-                target_df.columns = ["Wavelength", "Absorbance"]
-                target_df["Wavelength"] = pd.to_numeric(target_df["Wavelength"], errors="coerce")
-                target_df["Absorbance"] = pd.to_numeric(target_df["Absorbance"], errors="coerce")
-                target_df.dropna(inplace=True)
-                target_df.set_index("Wavelength", inplace=True)
-                target_series = target_df["Absorbance"]
-                break 
-            except Exception:
-                continue
+        
+        # 파일 확장자 확인 (csv 인지 sd 인지)
+        file_ext = uploaded_file.name.split('.')[-1].lower()
+        
+        if file_ext == 'sd':
+            # ==========================================
+            # ⭐️ 이곳에 가지고 계신 SD 변환 파이썬 코드를 이식합니다 ⭐️
+            # ==========================================
+            # 기존 코드에서 open(filename, 'rb').read()를 하셨다면, 
+            # 이제 파일을 읽을 필요 없이 위의 'file_bytes' 변수를 바로 파싱하시면 됩니다.
+            
+            # [적용 예시] (가지고 계신 변환 코드의 로직에 맞게 수정하세요)
+            import struct
+            
+            # 1) 가지고 계신 코드에 따라 파장 범위 설정 (보통 190nm ~ 1100nm)
+            wavelengths = np.arange(190, 1101) 
+            num_points = len(wavelengths)
+            
+            # 2) 파일에서 흡광도 데이터가 시작되는 위치(바이트 인덱스) 탐색
+            # start_idx = file_bytes.find(b'고유패턴') + 패턴길이 (기존 코드 참조)
+            start_idx = 100 # 예시 임시 위치
+            
+            # 3) struct.unpack을 이용해 바이너리를 리틀엔디안 배정밀도 실수(<d)로 변환
+            raw_data = file_bytes[start_idx : start_idx + (num_points * 8)]
+            absorbances = struct.unpack(f"<{num_points}d", raw_data)
+            
+            # 4) CSV로 저장하는 대신, 곧바로 차트에 그릴 Series 형태로 생성!
+            target_series = pd.Series(list(absorbances), index=wavelengths)
+
+        elif file_ext == 'csv':
+            # ==========================================
+            # 기존에 작성하신 훌륭한 CSV 처리 로직 그대로 유지
+            # ==========================================
+            encodings = ['utf-8', 'utf-16', 'utf-16-le', 'cp949', 'euc-kr']
+            for enc in encodings:
+                try:
+                    target_df = pd.read_csv(io.BytesIO(file_bytes), encoding=enc, usecols=[0, 1])
+                    target_df.columns = ["Wavelength", "Absorbance"]
+                    target_df["Wavelength"] = pd.to_numeric(target_df["Wavelength"], errors="coerce")
+                    target_df["Absorbance"] = pd.to_numeric(target_df["Absorbance"], errors="coerce")
+                    target_df.dropna(inplace=True)
+                    target_df.set_index("Wavelength", inplace=True)
+                    target_series = target_df["Absorbance"]
+                    break 
+                except Exception:
+                    continue
+        
+        # --- (이 아래는 기존 코드와 동일합니다) ---
+        if target_series is not None and not target_series.empty:
+            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
+            common_wavelengths = df.columns.intersection(target_series.index)
+            # ... 기존 매칭 분석 로직 계속 ...
         
         if target_series is not None and not target_series.empty:
             plot_items.append({"name": target_name, "data": target_series, "is_target": True})
