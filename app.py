@@ -5,21 +5,20 @@ import matplotlib.pyplot as plt
 import io
 import base64
 import os
+import struct
 
 # --- 페이지 기본 설정 ---
 st.set_page_config(page_title="Ohyoung UV-Vis", layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# ⭐️ 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS (강력한 사이드바 간격 제어)
+# ⭐️ 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS
 # ==========================================
-# 1. 로고 이미지를 Base64로 인코딩
-logo_html = ""
-if os.path.exists("logo.png"):
-    with open("logo.png", "rb") as f:
-        logo_base64 = base64.b64encode(f.read()).decode("utf-8")
-    logo_html = f'<img src="data:image/png;base64,{logo_base64}">'
-else:
-    logo_html = '<span style="font-size:24px; margin-right:10px;">🧪</span>'
+# 1. 로고 이미지를 Base64로 인코딩 (T/S Colordata 프로그램과 동일한 방식 적용)
+try:
+    with open("logo.png", "rb") as image_file:
+        logo_base64 = base64.b64encode(image_file.read()).decode()
+except Exception:
+    logo_base64 = ""
 
 # 2. 고정 메뉴바 및 사이드바 초밀착 CSS 주입
 st.markdown(f"""
@@ -41,34 +40,31 @@ st.markdown(f"""
         margin: 0 !important;
     }}
     
-    /* 3. 상단 고정 메뉴바 디자인 */
-    #custom-top-bar {{
+    /* 3. 🌟 새로운 상단 고정 메뉴바 디자인 (T/S Colordata 스타일) 🌟 */
+    .fixed-header {{
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
         height: 60px;
         background-color: #ffffff;
-        border-bottom: 2px solid #f0f2f6;
+        box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
+        z-index: 999998;
         display: flex;
         align-items: center;
-        padding: 0 20px;
-        z-index: 999999;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        padding-left: 20px;
+        border-bottom: 1px solid #eaeaea;
     }}
-    
-    #custom-top-bar img {{
-        height: 35px;
-        margin-right: 15px;
+    .fixed-header img {{
+        width: 45px;
+        margin-right: 12px;
     }}
-    
-    #custom-top-bar h2 {{
+    .fixed-header h2 {{
         margin: 0;
         padding: 0;
-        font-size: 22px;
+        font-size: 24px;
         font-weight: 700;
-        color: #1f2937;
-        line-height: 1;
+        color: #31333F;
     }}
 
     /* 4. 본문 상단 여백 설정 */
@@ -110,8 +106,8 @@ st.markdown(f"""
 </style>
 
 <!-- 상단 메뉴바 HTML 렌더링 -->
-<div id="custom-top-bar">
-    {logo_html}
+<div class="fixed-header">
+    <img src="data:image/png;base64,{logo_base64}" onerror="this.style.display='none'">
     <h2>Ohyoung UV-Vis</h2>
 </div>
 """, unsafe_allow_html=True)
@@ -136,7 +132,7 @@ def change_dye_type(dye_name):
 # 왼쪽 사이드바 (조작부)
 # ==========================================
 
-# 1. 데이터베이스(염료 종류) 선택 (간격 0으로 밀착)
+# 1. 데이터베이스(염료 종류) 선택
 st.sidebar.markdown(
     "<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>folder_open</span>데이터베이스 선택</h3>", 
     unsafe_allow_html=True
@@ -168,13 +164,12 @@ except FileNotFoundError:
     st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.", icon=":material/error:")
     st.stop()
 
-# 2. 파일 업로드 및 타겟 이름 설정
+# 2. 파일 업로드 및 타겟 이름 설정 (SD 전용)
 st.sidebar.markdown(
     "<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", 
     unsafe_allow_html=True
 )
 
-# 💡 오직 .sd 확장자만 허용하도록 변경
 uploaded_file = st.sidebar.file_uploader(
     "측정된 원본 SD 파일을 올려주세요.", 
     type=['sd']
@@ -222,7 +217,7 @@ except ValueError:
     min_wave = 300.0
     max_wave = 800.0
 
-# 5. 작성자 캡션 (사이드바 맨 밑으로 배치)
+# 5. 작성자 캡션
 st.sidebar.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 st.sidebar.caption("Created by tskwon :material/science:")
 
@@ -246,7 +241,6 @@ best_match = None
 
 if uploaded_file is not None:
     try:
-        import struct
         file_bytes = uploaded_file.getvalue()
         
         # Agilent 기본 파장 범위 (190nm ~ 1100nm)
@@ -301,47 +295,16 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"파일 분석 중 오류가 발생했습니다: {e}", icon=":material/error:")
 
-        # ----------------------------------------------------
-        # 3. 데이터 시각화 및 자동 매칭 (이 부분은 기존과 동일)
-        # ----------------------------------------------------
-        if target_series is not None and not target_series.empty:
-            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
-            common_wavelengths = df.columns.intersection(target_series.index)
-            db_data = df[common_wavelengths]
-            t_data = target_series[common_wavelengths]
-            errors = ((db_data - t_data) ** 2).mean(axis=1)
-            top3 = errors.sort_values().head(3)
-            best_match = top3.index[0]
-            st.success(f"자동 매칭 분석 완료! (1위: **{best_match}**)", icon=":material/check_circle:")
-            
-    except Exception as e:
-        st.error(f"파일 분석 오류: {e}", icon=":material/error:")
-        
-        # --- (이 아래는 기존 코드와 동일합니다) ---
-        if target_series is not None and not target_series.empty:
-            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
-            common_wavelengths = df.columns.intersection(target_series.index)
-            # ... 기존 매칭 분석 로직 계속 ...
-        
-        if target_series is not None and not target_series.empty:
-            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
-            common_wavelengths = df.columns.intersection(target_series.index)
-            db_data = df[common_wavelengths]
-            t_data = target_series[common_wavelengths]
-            errors = ((db_data - t_data) ** 2).mean(axis=1)
-            top3 = errors.sort_values().head(3)
-            best_match = top3.index[0]
-            st.success(f"자동 매칭 분석 완료! (1위: **{best_match}**)", icon=":material/check_circle:")
-    except Exception as e:
-        st.error(f"파일 분석 오류: {e}", icon=":material/error:")
 
+# 차트에 그릴 염료 리스트 취합
 dyes_to_plot = selected_dyes.copy()
-if target_series is not None and len(dyes_to_plot) == 0:
+if target_series is not None and len(dyes_to_plot) == 0 and best_match is not None:
     dyes_to_plot = [best_match]
 
 for dye in dyes_to_plot:
     plot_items.append({"name": dye, "data": df.loc[dye], "is_target": False})
 
+# 그래프 그리기 및 분석 표 출력
 if len(plot_items) > 0:
     fig, ax = plt.subplots(figsize=(10, 5))
     
