@@ -244,41 +244,55 @@ best_match = None
 
 if uploaded_file is not None:
     try:
-        # 업로드된 파일의 순수 바이너리 데이터를 메모리로 가져옵니다.
         file_bytes = uploaded_file.getvalue()
+        file_name = uploaded_file.name.lower()
         
-        # 파일 확장자 확인 (csv 인지 sd 인지)
-        file_ext = uploaded_file.name.split('.')[-1].lower()
-        
-        if file_ext == 'sd':
-            # ==========================================
-            # ⭐️ 이곳에 가지고 계신 SD 변환 파이썬 코드를 이식합니다 ⭐️
-            # ==========================================
-            # 기존 코드에서 open(filename, 'rb').read()를 하셨다면, 
-            # 이제 파일을 읽을 필요 없이 위의 'file_bytes' 변수를 바로 파싱하시면 됩니다.
-            
-            # [적용 예시] (가지고 계신 변환 코드의 로직에 맞게 수정하세요)
+        # ----------------------------------------------------
+        # 1. SD 파일인 경우 (업로드된 바이너리 직접 해독)
+        # ----------------------------------------------------
+        if file_name.endswith('.sd'):
             import struct
             
-            # 1) 가지고 계신 코드에 따라 파장 범위 설정 (보통 190nm ~ 1100nm)
-            wavelengths = np.arange(190, 1101) 
-            num_points = len(wavelengths)
+            # Agilent 기본 파장 범위 (190nm ~ 1100nm)
+            wavelengths = list(range(190, 1101))
+            spectrum_bytes_length = len(wavelengths) * 8
             
-            # 2) 파일에서 흡광도 데이터가 시작되는 위치(바이트 인덱스) 탐색
-            # start_idx = file_bytes.find(b'고유패턴') + 패턴길이 (기존 코드 참조)
-            start_idx = 100 # 예시 임시 위치
+            # 바이너리 파일 내부의 흡광도 데이터 시작을 알리는 헤더 패턴
+            headers = {
+                b'\x28\x00\x41\x00\x55\x00\x29\x00': 17, # '( A U ) '
+                b'\x28\x41\x55\x29\x00': 5             # '(AU) '
+            }
             
-            # 3) struct.unpack을 이용해 바이너리를 리틀엔디안 배정밀도 실수(<d)로 변환
-            raw_data = file_bytes[start_idx : start_idx + (num_points * 8)]
-            absorbances = struct.unpack(f"<{num_points}d", raw_data)
-            
-            # 4) CSV로 저장하는 대신, 곧바로 차트에 그릴 Series 형태로 생성!
-            target_series = pd.Series(list(absorbances), index=wavelengths)
+            header_found = None
+            spacing = None
+            for h, s in headers.items():
+                if file_bytes.find(h) != -1:
+                    header_found = h
+                    spacing = s
+                    break
+                    
+            if not header_found:
+                st.error("SD 파일에서 흡광도 데이터를 찾을 수 없습니다.", icon=":material/error:")
+            else:
+                # 데이터가 시작되는 정확한 위치 계산
+                header_idx = file_bytes.find(header_found)
+                start_idx = header_idx + spacing
+                end_idx = start_idx + spectrum_bytes_length
+                
+                # 순수 흡광도 바이너리 데이터 추출
+                spectrum_data = file_bytes[start_idx:end_idx]
+                
+                # 리틀엔디안 배정밀도 실수(<d)로 완벽하게 변환
+                absorbances = [val for val, in struct.iter_unpack('<d', spectrum_data)]
+                
+                # CSV에서 읽어오는 형태와 100% 동일한 Pandas Series로 변환
+                target_series = pd.Series(absorbances, index=wavelengths)
+                target_series.index.name = "Wavelength"
 
-        elif file_ext == 'csv':
-            # ==========================================
-            # 기존에 작성하신 훌륭한 CSV 처리 로직 그대로 유지
-            # ==========================================
+        # ----------------------------------------------------
+        # 2. 기존 CSV 파일인 경우
+        # ----------------------------------------------------
+        elif file_name.endswith('.csv'):
             encodings = ['utf-8', 'utf-16', 'utf-16-le', 'cp949', 'euc-kr']
             for enc in encodings:
                 try:
@@ -292,6 +306,22 @@ if uploaded_file is not None:
                     break 
                 except Exception:
                     continue
+
+        # ----------------------------------------------------
+        # 3. 데이터 시각화 및 자동 매칭 (이 부분은 기존과 동일)
+        # ----------------------------------------------------
+        if target_series is not None and not target_series.empty:
+            plot_items.append({"name": target_name, "data": target_series, "is_target": True})
+            common_wavelengths = df.columns.intersection(target_series.index)
+            db_data = df[common_wavelengths]
+            t_data = target_series[common_wavelengths]
+            errors = ((db_data - t_data) ** 2).mean(axis=1)
+            top3 = errors.sort_values().head(3)
+            best_match = top3.index[0]
+            st.success(f"자동 매칭 분석 완료! (1위: **{best_match}**)", icon=":material/check_circle:")
+            
+    except Exception as e:
+        st.error(f"파일 분석 오류: {e}", icon=":material/error:")
         
         # --- (이 아래는 기존 코드와 동일합니다) ---
         if target_series is not None and not target_series.empty:
