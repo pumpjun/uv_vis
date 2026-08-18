@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import io
 import base64
 import struct
 from scipy.optimize import nnls
+import plotly.graph_objects as go
 
 # --- 페이지 기본 설정 ---
 st.set_page_config(page_title="Ohyoung UV-Vis", layout="wide", initial_sidebar_state="expanded")
@@ -78,11 +78,8 @@ st.markdown(f'''
     .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
     .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
     
-    /* 🔥 화면 흔들림(Jittering) 완벽 방지 🔥 */
-    /* 우측 스크롤바 공간을 항시 확보하여 데이터 추가 시 화면 너비가 재계산되는 현상을 막습니다. */
-    [data-testid="stAppViewContainer"] {{
-        overflow-y: scroll !important;
-    }}
+    /* 화면 흔들림(Jittering) 완벽 방지 */
+    [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
 </style>
 
 <div class="fixed-header">
@@ -90,7 +87,6 @@ st.markdown(f'''
     <h2>Ohyoung UV-Vis</h2>
 </div>
 ''', unsafe_allow_html=True)
-
 
 # --- 데이터 불러오기 ---
 @st.cache_data
@@ -104,7 +100,6 @@ if "dye_type" not in st.session_state:
 
 def change_dye_type(dye_name):
     st.session_state.dye_type = dye_name
-
 
 # ==========================================
 # 왼쪽 사이드바 (조작부)
@@ -143,7 +138,6 @@ if uploaded_files:
         file_bytes = file.getvalue()
         filename = file.name
         
-        # 각 파일에서 모든 흡광도 데이터 구간을 검색하여 추출
         for h, spacing in headers.items():
             total_matches = file_bytes.count(h)
             start_search = 0
@@ -163,13 +157,11 @@ if uploaded_files:
                         series = pd.Series(absorbances, index=wavelengths)
                         series.index.name = "Wavelength"
                         
-                        # 파일 내 데이터가 여러 개면 (1), (2) 번호 부여
                         if total_matches > 1:
                             spec_name = f"{filename} ({count})"
                         else:
                             spec_name = filename
                             
-                        # 이름 중복 방지
                         base_name = spec_name
                         dedup = 1
                         while spec_name in uploaded_spectra:
@@ -198,15 +190,13 @@ else:
 target_name = None
 target_series_sd = None
 
-
 # ==========================================
-# 🎯 타겟 드롭다운 선택 (다중 데이터 중 1개 기준점 설정)
+# 🎯 타겟 드롭다운 선택
 # ==========================================
 if uploaded_spectra:
     st.sidebar.markdown("<div style='margin-top: 15px; margin-bottom: 5px; color: #2e7af5; font-weight: bold;'>🎯 타겟(기준) 스펙트럼 선택</div>", unsafe_allow_html=True)
     target_name = st.sidebar.selectbox("타겟 선택", options=list(uploaded_spectra.keys()), label_visibility="collapsed")
     target_series_sd = uploaded_spectra[target_name]
-
 
 # ==========================================
 # 🎨 1. DB 염료 선택 & 2. 다른 업로드 성분 선택 분리
@@ -260,6 +250,9 @@ except ValueError:
 
 st.sidebar.caption("Created by tskwon :material/science:")
 
+# 공용 차트 색상 팔레트
+color_palette = ['black', 'red', 'blue', 'purple', 'green', 'orange', 'brown', 'pink']
+
 # 인쇄용 공통 변수 초기화
 img_base64 = ""
 summary_box_html = ""
@@ -279,7 +272,6 @@ if app_mode == "SPEC":
     if target_series_sd is not None and not target_series_sd.empty:
         plot_items.append({"name": target_name, "data": target_series_sd, "is_target": True})
         
-        # 자동 매칭은 '순수 DB 데이터(df)' 하고만 비교 (업로드 파일끼리 매칭 방지)
         common_wavelengths = df.columns.intersection(target_series_sd.index)
         db_data = df[common_wavelengths]
         t_data = target_series_sd[common_wavelengths]
@@ -292,30 +284,40 @@ if app_mode == "SPEC":
         dyes_to_plot = [best_match]
 
     for dye in dyes_to_plot:
-        # combined_df에서 불러오므로, 업로드된 다른 데이터도 그래프에 올릴 수 있음
         plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
 
     if len(plot_items) > 0:
-        fig, ax = plt.subplots(figsize=(10, 5))
-        color_palette = ['black', 'red', 'blue', 'purple', 'green', 'orange']
+        fig = go.Figure()
         table_data = {"Name": [], "Peaks(nm)": [], "Abs(AU)": []}
         target_max_abs = first_match_max_abs = match_name_for_conc = None
 
         for i, item in enumerate(plot_items):
             name = item["name"]
             series = item["data"]
-            color = color_palette[i] if i < len(color_palette) else plt.cm.tab10(i)
+            color = color_palette[i % len(color_palette)] 
             
-            ax.plot(series.index, series.values, label=name, color=color, linewidth=2)
+            fig.add_trace(go.Scatter(
+                x=series.index, y=series.values, 
+                mode='lines', name=name, 
+                line=dict(color=color, width=1.5)
+            ))
+            
             mask = (series.index >= min_wave) & (series.index <= max_wave)
             if np.any(mask):
                 range_series = series[mask]
                 p_wave = range_series.idxmax()
                 p_abs = range_series.max()
-                ax.plot(p_wave, p_abs, "o", color=color, markersize=8)
                 
-                peak_label = f" {p_wave:.0f}nm\n ({p_abs:.2f})"
-                ax.text(p_wave, p_abs, peak_label, fontsize=9, ha='left', va='bottom', color=color, fontweight='bold')
+                fig.add_trace(go.Scatter(
+                    x=[p_wave], y=[p_abs], 
+                    mode='markers+text', 
+                    marker=dict(color=color, size=8),
+                    text=[f"{p_wave:.0f}nm<br>({p_abs:.2f})"],
+                    textposition="top right",
+                    textfont=dict(color=color, size=11),
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
                 
                 table_data["Name"].append(name)
                 table_data["Peaks(nm)"].append(f"{p_wave:.1f}")
@@ -326,18 +328,27 @@ if app_mode == "SPEC":
                     first_match_max_abs = p_abs
                     match_name_for_conc = name
 
-        ax.set_title(f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)")
-        ax.set_xlabel("Wavelength (nm)")
-        ax.set_ylabel("Absorbance (AU)")
-        ax.legend()
-        ax.grid(True, linestyle='--', alpha=0.6)
+        fig.update_layout(
+            title=f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)",
+            xaxis_title="Wavelength (nm)",
+            yaxis_title="Absorbance (AU)",
+            hovermode="x unified",
+            margin=dict(l=40, r=40, t=60, b=40),
+            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            dragmode="zoom",
+            # 🔥 파장 범위 강제 지정 옵션을 제거하여 190~1100nm 처음부터 끝까지 보이도록 수정했습니다.
+            xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]), 
+            yaxis=dict(showgrid=True, gridcolor='#eaeaea')
+        )
         
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches='tight', dpi=300)
-        img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
+        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         
         conc_summary_web = conc_summary_print = ""
-        if target_max_abs is not None and first_match_max_abs is not None and len(selected_dyes) == 1:
+        # 🔥 수동 선택을 1개 했거나 OR 업로드 후 자동매칭만 떴을 때(총 2개 그래프) 농도 계산 수행!
+        if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
             conc_summary_web = f"- **농도 분석:** {target_name}이 {match_name_for_conc} 대비 약 **{abs(conc_diff_pct):.1f}%** 더 {direction_str}."
@@ -345,7 +356,7 @@ if app_mode == "SPEC":
 
         col_left, col_right = st.columns([1, 2])
         with col_right:
-            st.pyplot(fig)
+            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
             
         with col_left:
             st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
@@ -356,13 +367,12 @@ if app_mode == "SPEC":
                 df_summary.index = range(1, len(df_summary) + 1)
                 def color_rows(row):
                     idx = row.name - 1
-                    color = color_palette[idx] if idx < len(color_palette) else 'black'
+                    color = color_palette[idx % len(color_palette)]
                     return [f'color: {color}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
-        # 인쇄용 포맷 세팅
         for idx in range(len(table_data["Name"])):
-            c = color_palette[idx] if idx < len(color_palette) else 'black'
+            c = color_palette[idx % len(color_palette)]
             table_rows_html += f"<tr style='color: {c}; font-weight: bold; border-bottom: 1px solid #ddd;'>"
             table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Name'][idx]}</td>"
             table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Peaks(nm)'][idx]}</td>"
@@ -395,7 +405,6 @@ elif app_mode == "MIX":
         mix_target_name = target_name
         comp_dyes = selected_dyes
     else:
-        # SD 파일이 아예 없을 때, 첫 번째 선택 염료를 타겟으로 지정
         if len(selected_dyes) > 0:
             mix_target_name = selected_dyes[0]
             mix_target_series = combined_df.loc[mix_target_name]
@@ -408,7 +417,6 @@ elif app_mode == "MIX":
     else:
         common_wvl = combined_df.columns.intersection(mix_target_series.index)
         
-        # combined_df에서 불러오므로, DB 성분과 업로드된 다른 SD 파일 성분을 동시에 혼합 계산 가능!
         X_nnls = combined_df.loc[comp_dyes, common_wvl].T.values
         Y_nnls = mix_target_series[common_wvl].values
         
@@ -436,21 +444,40 @@ elif app_mode == "MIX":
             )
         
         with col_n2:
-            fig_nnls, ax_nnls = plt.subplots(figsize=(8, 3.5))
-            ax_nnls.plot(common_wvl, Y_nnls, label=f"Original ({mix_target_name})", color="black", linewidth=2)
-            ax_nnls.plot(common_wvl, Y_pred, label="Reconstructed (Simulated)", color="red", linestyle="--", linewidth=2)
-            ax_nnls.set_title(f"Target vs Reconstructed Spectrum")
-            ax_nnls.set_xlabel("Wavelength (nm)")
-            ax_nnls.set_ylabel("Absorbance (AU)")
-            ax_nnls.legend()
-            ax_nnls.grid(True, linestyle='--', alpha=0.6)
-            st.pyplot(fig_nnls)
+            fig_nnls = go.Figure()
+            
+            fig_nnls.add_trace(go.Scatter(
+                x=common_wvl, y=Y_nnls, 
+                mode='lines', name=f"Original ({mix_target_name})", 
+                line=dict(color='black', width=1.5)
+            ))
+            
+            fig_nnls.add_trace(go.Scatter(
+                x=common_wvl, y=Y_pred, 
+                mode='lines', name="Reconstructed (Simulated)", 
+                line=dict(color='red', width=1.5, dash='dash')
+            ))
 
-            buf = io.BytesIO()
-            fig_nnls.savefig(buf, format="png", bbox_inches='tight', dpi=300)
-            img_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            fig_nnls.update_layout(
+                title=f"Target vs Reconstructed Spectrum",
+                xaxis_title="Wavelength (nm)",
+                yaxis_title="Absorbance (AU)",
+                hovermode="x unified",
+                margin=dict(l=40, r=40, t=60, b=40),
+                legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                dragmode="zoom",
+                # 🔥 여기도 X축 범위를 190~1100으로 고정했습니다.
+                xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]),
+                yaxis=dict(showgrid=True, gridcolor='#eaeaea')
+            )
+            
+            img_bytes = fig_nnls.to_image(format="png", engine="kaleido", scale=2)
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
 
-        # 인쇄용 포맷 세팅
+            st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
+
         table_rows_html = f"<tr style='background-color:#eee; font-weight:bold;'><td colspan='3'>Target: {mix_target_name}</td></tr>"
         for _, row in nnls_df.iterrows():
             table_rows_html += f"<tr style='border-bottom: 1px solid #ddd;'>"
