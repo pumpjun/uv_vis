@@ -34,12 +34,12 @@ with col_m2:
               on_click=set_app_mode, args=("MIX",))
 
 # ==========================================
-# 🌟 3. 본문 겹침 방지용 강력한 여백 (물리적 차단막) 🌟
+# 🌟 3. 본문 겹침 방지용 강력한 여백 🌟
 # ==========================================
 st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_html=True)
 
 # ==========================================
-# 🌟 4. 진짜 상단 고정 메뉴바 및 완벽 복구된 CSS 🌟
+# 🌟 4. 진짜 상단 고정 메뉴바 및 UI 커스텀 CSS 🌟
 # ==========================================
 try:
     with open("logo.png", "rb") as image_file:
@@ -76,8 +76,6 @@ st.markdown(f'''
     div.element-container {{ margin-bottom: 0 !important; }}
     .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
     .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
-    
-    /* 화면 흔들림(Jittering) 방지 */
     [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
 </style>
 
@@ -277,9 +275,6 @@ if app_mode == "SPEC":
     for dye in dyes_to_plot:
         plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
 
-    df_summary = pd.DataFrame()
-    copy_text_js = ""
-
     if len(plot_items) > 0:
         fig = go.Figure()
         table_data = {"Name": [], "Peaks(nm)": [], "Abs(AU)": []}
@@ -334,10 +329,11 @@ if app_mode == "SPEC":
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
             conc_summary_web = f"- **농도 분석:** {target_name}이 {match_name_for_conc} 대비 약 **{abs(conc_diff_pct):.1f}%** 더 {direction_str}."
-            plain_summary_text = f"{target_name}이 {match_name_for_conc} 대비 약 {abs(conc_diff_pct):.1f}% 더 {direction_str}."
+            plain_summary_text = f"농도 분석: {target_name}이 {match_name_for_conc} 대비 약 {abs(conc_diff_pct):.1f}% 더 {direction_str}."
 
         col_left, col_right = st.columns([1, 2])
         with col_right:
+            st.info("💡 **그래프 이미지 복사:** 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 누르시면 워드나 PPT에 예쁘게 붙여넣을 수 있습니다.")
             st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
             
         with col_left:
@@ -353,52 +349,66 @@ if app_mode == "SPEC":
                     return [f'color: {color}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
-                # 🌟 [텍스트 병합] 클립보드 복사용 데이터 생성 (워드,엑셀에 맞게 탭 분리)
-                copy_text = "[실무 분석 요약]\n"
+                # 🌟 [HTML 표 복사 기능] 워드/엑셀에 테이블 형태로 복사되도록 HTML 생성
+                html_content = f"<h3>[실무 분석 요약]</h3>"
                 if plain_summary_text:
-                    copy_text += plain_summary_text + "\n\n"
+                    html_content += f"<p><b>{plain_summary_text}</b></p>"
                 else:
-                    copy_text += "농도 비교 결과 없음\n\n"
+                    html_content += "<p>농도 비교 결과 없음</p>"
                 
-                copy_text += "[스펙트럼 피크 데이터]\n"
-                copy_text += "Name\tPeaks(nm)\tAbs(AU)\n"
+                html_content += "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif;'>"
+                html_content += "<tr style='background-color: #f2f2f2;'><th>Name</th><th>Peaks (nm)</th><th>Abs (AU)</th></tr>"
                 for idx in range(len(table_data["Name"])):
-                    copy_text += f"{table_data['Name'][idx]}\t{table_data['Peaks(nm)'][idx]}\t{table_data['Abs(AU)'][idx]}\n"
+                    html_content += f"<tr><td style='padding: 8px;'>{table_data['Name'][idx]}</td><td style='padding: 8px;'>{table_data['Peaks(nm)'][idx]}</td><td style='padding: 8px;'>{table_data['Abs(AU)'][idx]}</td></tr>"
+                html_content += "</table>"
                 
-                copy_text_js = copy_text.replace('\n', '\\n').replace('"', '\\"').replace("'", "\\'")
-
-        # ==========================================
-        # 📋 텍스트 복사 & 그래프 복사 안내 UI
-        # ==========================================
-        st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **그래프 이미지 복사 팁:** 화면의 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 선택하시면 워드나 PPT에 그대로 붙여넣을 수 있습니다!")
-        
-        c1, c2, c3 = st.columns([2, 2, 4])
-        with c1:
-            if not df_summary.empty:
-                csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("📥 데이터 다운로드 (CSV)", data=csv_data, file_name="spectrum_result.csv", mime="text/csv", use_container_width=True)
-        with c2:
-            if copy_text_js:
+                js_html_content = html_content.replace('\n', ' ').replace('"', '\\"').replace("'", "\\'")
+                
+                # 표 바로 아래에 위치하는 복사 버튼
                 copy_btn_html = f"""
-                <button onclick="copyToClipboard()" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                <button onclick="copyToClipboard(this)" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 10px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.3s; margin-top: -10px;">
                     <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
-                    표 + 농도분석 복사
+                    <span>표 + 분석 요약 복사하기</span>
                 </button>
                 <script>
-                function copyToClipboard() {{
-                    const text = "{copy_text_js}";
-                    const el = document.createElement('textarea');
-                    el.value = text;
-                    document.body.appendChild(el);
-                    el.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(el);
-                    alert('✅ 농도 분석 요약과 표 데이터가 복사되었습니다! 워드나 엑셀에서 Ctrl+V 를 눌러주세요.');
+                function copyToClipboard(button) {{
+                    const htmlText = "{js_html_content}";
+                    const tempDiv = document.createElement("div");
+                    tempDiv.innerHTML = htmlText;
+                    tempDiv.style.position = "absolute";
+                    tempDiv.style.left = "-9999px";
+                    document.body.appendChild(tempDiv);
+                    
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(tempDiv);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    
+                    try {{
+                        document.execCommand('copy');
+                        const iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+                        const originalHtml = button.innerHTML;
+                        const originalBg = button.style.backgroundColor;
+                        
+                        // 팝업 없이 부드럽게 색상과 글자 변경 애니메이션
+                        button.innerHTML = iconSvg + '<span>복사 완료! (Ctrl+V)</span>';
+                        button.style.backgroundColor = '#28a745'; // 초록색 피드백
+                        
+                        setTimeout(() => {{
+                            button.innerHTML = originalHtml;
+                            button.style.backgroundColor = originalBg;
+                        }}, 2500);
+                    }} catch(e) {{
+                        console.error(e);
+                    }}
+                    
+                    document.body.removeChild(tempDiv);
+                    selection.removeAllRanges();
                 }}
                 </script>
                 """
-                st.components.v1.html(copy_btn_html, height=45)
+                st.components.v1.html(copy_btn_html, height=50)
 
 
 # ==========================================
@@ -447,8 +457,7 @@ elif app_mode == "MIX":
         }).sort_values(by="Ratio(%)", ascending=False)
         
         nnls_result_str = ", ".join([f"{row['Name']}({row['Ratio(%)']:.1f}%)" for _, row in nnls_df.iterrows() if row['Ratio(%)'] > 0.1])
-        plain_summary_text = f"[Target: {mix_target_name}]\n{nnls_result_str}"
-        nnls_summary_print = f"<b>예측 혼합비(NNLS) [Target: {mix_target_name}]:</b> {nnls_result_str}"
+        plain_summary_text = f"예측 혼합비 (Target: {mix_target_name}):<br>{nnls_result_str}"
         
         col_n1, col_n2 = st.columns([1, 2])
         with col_n1:
@@ -458,17 +467,65 @@ elif app_mode == "MIX":
                 use_container_width=True, hide_index=True
             )
             
-            # 🌟 [텍스트 병합] 클립보드 복사용 데이터 생성 (워드,엑셀에 맞게 탭 분리)
-            copy_text = "[예측 혼합비 요약]\n"
-            copy_text += plain_summary_text + "\n\n"
-            copy_text += "[상세 구성 비율 표]\n"
-            copy_text += "Component Name\tRatio (%)\tCoefficient\n"
+            # 🌟 [HTML 표 복사 기능] 워드/엑셀 표 형태 유지
+            html_content = f"<h3>[혼합 비율 예측 요약]</h3>"
+            html_content += f"<p><b>{plain_summary_text}</b></p>"
+            html_content += "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif;'>"
+            html_content += "<tr style='background-color: #f2f2f2;'><th>Component Name</th><th>Ratio (%)</th><th>Coefficient</th></tr>"
             for _, row in nnls_df.iterrows():
-                copy_text += f"{row['Name']}\t{row['Ratio(%)']:.1f}%\t{row['Coefficient']:.4f}\n"
+                html_content += f"<tr><td style='padding: 8px;'>{row['Name']}</td><td style='padding: 8px;'>{row['Ratio(%)']:.1f}%</td><td style='padding: 8px;'>{row['Coefficient']:.4f}</td></tr>"
+            html_content += "</table>"
             
-            copy_text_js = copy_text.replace('\n', '\\n').replace('"', '\\"').replace("'", "\\'")
+            js_html_content = html_content.replace('\n', ' ').replace('"', '\\"').replace("'", "\\'")
+            
+            # 표 바로 아래 위치하는 복사 버튼
+            copy_btn_html = f"""
+            <button onclick="copyToClipboard(this)" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 10px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.3s; margin-top: -10px;">
+                <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+                <span>표 + 예측 결과 복사하기</span>
+            </button>
+            <script>
+            function copyToClipboard(button) {{
+                const htmlText = "{js_html_content}";
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = htmlText;
+                tempDiv.style.position = "absolute";
+                tempDiv.style.left = "-9999px";
+                document.body.appendChild(tempDiv);
+                
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(tempDiv);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                try {{
+                    document.execCommand('copy');
+                    const iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+                    const originalHtml = button.innerHTML;
+                    const originalBg = button.style.backgroundColor;
+                    
+                    // 팝업 없이 부드럽게 색상과 글자 변경 애니메이션
+                    button.innerHTML = iconSvg + '<span>복사 완료! (Ctrl+V)</span>';
+                    button.style.backgroundColor = '#28a745'; // 초록색 피드백
+                    
+                    setTimeout(() => {{
+                        button.innerHTML = originalHtml;
+                        button.style.backgroundColor = originalBg;
+                    }}, 2500);
+                }} catch(e) {{
+                    console.error(e);
+                }}
+                
+                document.body.removeChild(tempDiv);
+                selection.removeAllRanges();
+            }}
+            </script>
+            """
+            st.components.v1.html(copy_btn_html, height=50)
         
         with col_n2:
+            st.info("💡 **그래프 이미지 복사:** 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 누르시면 워드나 PPT에 예쁘게 붙여넣을 수 있습니다.")
             fig_nnls = go.Figure()
             
             fig_nnls.add_trace(go.Scatter(
@@ -492,34 +549,3 @@ elif app_mode == "MIX":
             )
             
             st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
-
-        # ==========================================
-        # 📋 텍스트 복사 & 그래프 복사 안내 UI
-        # ==========================================
-        st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **그래프 이미지 복사 팁:** 화면의 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 선택하시면 워드나 PPT에 그대로 붙여넣을 수 있습니다!")
-        
-        c1, c2, c3 = st.columns([2, 2, 4])
-        with c1:
-            csv_data = nnls_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 데이터 다운로드 (CSV)", data=csv_data, file_name="mix_ratio_result.csv", mime="text/csv", use_container_width=True)
-        with c2:
-            copy_btn_html = f"""
-            <button onclick="copyToClipboard()" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
-                <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
-                표 + 혼합비율 복사
-            </button>
-            <script>
-            function copyToClipboard() {{
-                const text = "{copy_text_js}";
-                const el = document.createElement('textarea');
-                el.value = text;
-                document.body.appendChild(el);
-                el.select();
-                document.execCommand('copy');
-                document.body.removeChild(el);
-                alert('✅ 혼합 예측 요약과 표 데이터가 복사되었습니다! 워드나 엑셀에서 Ctrl+V 를 눌러주세요.');
-            }}
-            </script>
-            """
-            st.components.v1.html(copy_btn_html, height=45)
