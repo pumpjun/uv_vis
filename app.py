@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import io
 import base64
 import struct
@@ -21,26 +22,51 @@ def set_app_mode(mode):
 
 app_mode = st.session_state.app_mode
 
-# ==========================================
-# 🌟 2. 순정 메뉴 버튼 생성 (무조건 가장 먼저 작성!) 🌟
-# ==========================================
-col_m1, col_m2 = st.columns(2)
-with col_m1:
-    st.button("스펙트럼 비교", icon=":material/bar_chart:", use_container_width=True, 
-              type="primary" if app_mode == "SPEC" else "secondary",
-              on_click=set_app_mode, args=("SPEC",))
-with col_m2:
-    st.button("혼합 비율 예측", icon=":material/science:", use_container_width=True, 
-              type="primary" if app_mode == "MIX" else "secondary",
-              on_click=set_app_mode, args=("MIX",))
+# 상태에 따라 버튼에 색상을 켜주는 클래스 변수
+active_spec_class = "active" if app_mode == "SPEC" else "inactive"
+active_mix_class = "active" if app_mode == "MIX" else "inactive"
+
 
 # ==========================================
-# 🌟 3. 본문 겹침 방지용 강력한 여백 (물리적 차단막) 🌟
+# 🌟 2. 숨겨진 Streamlit 네이티브 버튼 (상태 변경용 트리거) 🌟
 # ==========================================
-st.markdown("<div style='height: 50px; display: block;'></div>", unsafe_allow_html=True)
+with st.sidebar:
+    st.button("BTN_SPEC", on_click=set_app_mode, args=("SPEC",), key="btn_spec")
+    st.button("BTN_MIX", on_click=set_app_mode, args=("MIX",), key="btn_mix")
+
+hide_and_trigger_js = """
+<script>
+    const parent = window.parent.document;
+    
+    function hideButtons() {
+        const buttons = parent.querySelectorAll('button');
+        buttons.forEach(btn => {
+            if (btn.innerText.includes('BTN_SPEC') || btn.innerText.includes('BTN_MIX')) {
+                let container = btn.closest('.element-container');
+                if (container) container.style.display = 'none';
+            }
+        });
+    }
+    setTimeout(hideButtons, 10);
+    setTimeout(hideButtons, 100);
+
+    window.parent.triggerClick = function(targetMode) {
+        const targetText = targetMode === 'SPEC' ? 'BTN_SPEC' : 'BTN_MIX';
+        const buttons = parent.querySelectorAll('button');
+        for (let btn of buttons) {
+            if (btn.innerText.includes(targetText)) {
+                btn.click();
+                break;
+            }
+        }
+    }
+</script>
+"""
+st.components.v1.html(hide_and_trigger_js, height=0)
+
 
 # ==========================================
-# 🌟 4. 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS 🌟
+# 🌟 3. 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS 🌟
 # ==========================================
 try:
     with open("logo.png", "rb") as image_file:
@@ -48,45 +74,80 @@ try:
 except Exception:
     logo_base64 = ""
 
-st.markdown(f'''
+header_html = r'''
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    [data-testid="stHeader"] {{ display: none !important; }}
+    /* 기본 헤더 숨기기 */
+    [data-testid="stHeader"] { display: none !important; }
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
+    [data-testid="stSidebarHeader"] { display: none !important; height: 0 !important; margin: 0 !important; }
     
-    .fixed-header {{
+    /* 상단 고정 바 디자인 */
+    .fixed-header {
         position: fixed; top: 0; left: 0; width: 100vw; height: 60px;
         background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
         z-index: 999998; display: flex; align-items: center; padding-left: 20px; border-bottom: 1px solid rgba(128,128,128,0.2);
-    }}
-    .fixed-header img {{ width: 45px; margin-right: 12px; }}
-    .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
+    }
+    .fixed-header img { width: 45px; margin-right: 12px; }
+    .fixed-header h2 { margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }
     
-    /* 메뉴 버튼 2개를 상단바 안으로 이동 */
-    [data-testid="stMainBlockContainer"] > div > div:first-child {{
-        position: fixed !important; top: 11px !important; left: 290px !important; 
-        width: 380px !important; z-index: 999999 !important; background-color: transparent !important;
-    }}
+    /* HTML 버튼 디자인 */
+    .top-menu-btn {
+        background-color: transparent;
+        color: var(--text-color);
+        border: 1px solid rgba(128,128,128,0.3);
+        padding: 8px 16px;
+        margin-right: 12px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    .top-menu-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    .top-menu-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    .top-menu-btn.active:hover { color: white; }
     
-    .block-container, .stMainBlockContainer {{ padding-top: 80px !important; }}
-    [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
-    [data-testid="stSidebarUserContent"] {{ padding-top: 10px !important; padding-bottom: 10px !important; }}
-    [data-testid="stSidebarUserContent"] > div {{ gap: 0.5rem !important; }}
-    div.element-container {{ margin-bottom: 0 !important; }}
-    .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
-    .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
-    
-    /* 화면 흔들림(Jittering) 완벽 방지 */
-    [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
+    /* 본문 영역 밀림 방지 */
+    .block-container { padding-top: 80px !important; }
+    [data-testid="stSidebar"] { padding-top: 60px !important; }
+    [data-testid="stSidebarUserContent"] { padding-top: 10px !important; padding-bottom: 10px !important; }
+    [data-testid="stSidebarUserContent"] > div { gap: 0.5rem !important; }
+    div.element-container { margin-bottom: 0 !important; }
+    .stTextInput>div, .stMultiSelect>div, .stFileUploader>div { padding-bottom: 0 !important; }
+    .material-symbols-outlined { line-height: 1 !important; vertical-align: middle; }
+    [data-testid="stAppViewContainer"] { overflow-y: scroll !important; }
 </style>
 
 <div class="fixed-header">
-    <img src="data:image/png;base64,{logo_base64}" onerror="this.style.display='none'">
+    <img src="data:image/png;base64,LOGO_BASE64" onerror="this.style.display='none'">
     <h2>Ohyoung UV-Vis</h2>
+    
+    <button class="top-menu-btn CLASS_SPEC" onclick="window.parent.triggerClick('SPEC')">
+        <span class="material-symbols-outlined" style="margin-right: 6px; font-size: 18px;">bar_chart</span>스펙트럼 비교
+    </button>
+    <button class="top-menu-btn CLASS_MIX" onclick="window.parent.triggerClick('MIX')">
+        <span class="material-symbols-outlined" style="margin-right: 6px; font-size: 18px;">science</span>혼합 비율 예측
+    </button>
 </div>
-''', unsafe_allow_html=True)
+'''
+
+header_html = header_html.replace("LOGO_BASE64", logo_base64)
+header_html = header_html.replace("CLASS_SPEC", active_spec_class)
+header_html = header_html.replace("CLASS_MIX", active_mix_class)
+
+st.markdown(header_html, unsafe_allow_html=True)
+
 
 # --- 데이터 불러오기 ---
 @st.cache_data
@@ -120,10 +181,6 @@ except FileNotFoundError:
     st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.", icon=":material/error:")
     st.stop()
 
-
-# ==========================================
-# 🌟 [다중 파일 및 다중 데이터 추출] 업로드부 🌟
-# ==========================================
 st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", unsafe_allow_html=True)
 uploaded_files = st.sidebar.file_uploader("SD 파일을 여러 개 올릴 수 있습니다.", type=['sd'], accept_multiple_files=True)
 
@@ -338,16 +395,20 @@ if app_mode == "SPEC":
             plot_bgcolor='white',
             paper_bgcolor='white',
             dragmode="zoom",
-            # 🔥 파장 범위 강제 지정 옵션을 제거하여 190~1100nm 처음부터 끝까지 보이도록 수정했습니다.
             xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]), 
             yaxis=dict(showgrid=True, gridcolor='#eaeaea')
         )
         
-        img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        # 🔥 에러 방지용 안전장치 (앱 다운 방지)
+        try:
+            img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        except Exception:
+            img_base64 = ""
+            st.warning("⚠️ 서버 환경에서 인쇄용 이미지 변환 모듈(Kaleido)을 실행할 수 없어 인쇄 기능이 비활성화되었습니다. (화면 그래프는 정상 작동합니다.)")
         
         conc_summary_web = conc_summary_print = ""
-        # 🔥 수동 선택을 1개 했거나 OR 업로드 후 자동매칭만 떴을 때(총 2개 그래프) 농도 계산 수행!
+        # 타겟과 1순위 매칭(또는 사용자가 직접 1개 선택한 염료)과의 농도 차이 계산
         if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
@@ -371,6 +432,7 @@ if app_mode == "SPEC":
                     return [f'color: {color}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
+        # 인쇄용 포맷 세팅
         for idx in range(len(table_data["Name"])):
             c = color_palette[idx % len(color_palette)]
             table_rows_html += f"<tr style='color: {c}; font-weight: bold; border-bottom: 1px solid #ddd;'>"
@@ -405,6 +467,7 @@ elif app_mode == "MIX":
         mix_target_name = target_name
         comp_dyes = selected_dyes
     else:
+        # SD 파일이 아예 없을 때, 첫 번째 선택 염료를 타겟으로 지정
         if len(selected_dyes) > 0:
             mix_target_name = selected_dyes[0]
             mix_target_series = combined_df.loc[mix_target_name]
@@ -468,13 +531,16 @@ elif app_mode == "MIX":
                 plot_bgcolor='white',
                 paper_bgcolor='white',
                 dragmode="zoom",
-                # 🔥 여기도 X축 범위를 190~1100으로 고정했습니다.
                 xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]),
                 yaxis=dict(showgrid=True, gridcolor='#eaeaea')
             )
             
-            img_bytes = fig_nnls.to_image(format="png", engine="kaleido", scale=2)
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            # 🔥 에러 방지용 안전장치 (앱 다운 방지)
+            try:
+                img_bytes = fig_nnls.to_image(format="png", engine="kaleido", scale=2)
+                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            except Exception:
+                img_base64 = ""
 
             st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
 
