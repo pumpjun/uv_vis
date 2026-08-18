@@ -23,7 +23,6 @@ app_mode = st.session_state.app_mode
 
 # ==========================================
 # 🌟 2. 순정 메뉴 버튼 생성 (무조건 가장 먼저 작성!) 🌟
-# 이 컬럼 컨테이너 자체가 CSS에 의해 상단바 안으로 이동합니다.
 # ==========================================
 col_m1, col_m2 = st.columns(2)
 with col_m1:
@@ -52,13 +51,11 @@ except Exception:
 st.markdown(f'''
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    /* 기본 헤더 및 불필요한 공백 숨기기 */
     [data-testid="stHeader"] {{ display: none !important; }}
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
     
-    /* 상단 고정 바 디자인 껍데기 */
     .fixed-header {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 60px;
         background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
@@ -67,26 +64,25 @@ st.markdown(f'''
     .fixed-header img {{ width: 45px; margin-right: 12px; }}
     .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
     
-    /* 🌟 핵심 해결: "첫 번째 컬럼 컨테이너(메뉴 버튼 2개)"를 콕 집어서 상단바 안으로 이동 🌟 */
+    /* 메뉴 버튼 2개를 상단바 안으로 이동 */
     [data-testid="stMainBlockContainer"] > div > div:first-child {{
-        position: fixed !important;
-        top: 11px !important;
-        left: 290px !important; /* 타이틀 글씨 바로 우측에 위치 */
-        width: 380px !important;
-        z-index: 999999 !important;
-        background-color: transparent !important;
+        position: fixed !important; top: 11px !important; left: 290px !important; 
+        width: 380px !important; z-index: 999999 !important; background-color: transparent !important;
     }}
     
-    /* 본문 영역 밀림 방지 */
     .block-container, .stMainBlockContainer {{ padding-top: 80px !important; }}
-    
-    /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
     [data-testid="stSidebarUserContent"] {{ padding-top: 10px !important; padding-bottom: 10px !important; }}
     [data-testid="stSidebarUserContent"] > div {{ gap: 0.5rem !important; }}
     div.element-container {{ margin-bottom: 0 !important; }}
     .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
     .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
+    
+    /* 🔥 화면 흔들림(Jittering) 완벽 방지 🔥 */
+    /* 우측 스크롤바 공간을 항시 확보하여 데이터 추가 시 화면 너비가 재계산되는 현상을 막습니다. */
+    [data-testid="stAppViewContainer"] {{
+        overflow-y: scroll !important;
+    }}
 </style>
 
 <div class="fixed-header">
@@ -173,7 +169,7 @@ if uploaded_files:
                         else:
                             spec_name = filename
                             
-                        # 이름 중복 방지 (만약 동일한 파일명이 또 올라왔을 경우)
+                        # 이름 중복 방지
                         base_name = spec_name
                         dedup = 1
                         while spec_name in uploaded_spectra:
@@ -191,7 +187,7 @@ if uploaded_files:
         st.sidebar.error("업로드된 파일에서 유효한 스펙트럼을 찾을 수 없습니다.", icon=":material/error:")
 
 
-# 업로드된 데이터와 기존 DB 병합 (그래프 출력과 혼합 계산용)
+# 업로드된 데이터와 기존 DB 병합
 if uploaded_spectra:
     uploaded_df = pd.DataFrame(uploaded_spectra).T
     uploaded_df.columns = uploaded_df.columns.astype(float)
@@ -263,7 +259,6 @@ except ValueError:
     min_wave, max_wave = 300.0, 800.0
 
 st.sidebar.caption("Created by tskwon :material/science:")
-
 
 # 인쇄용 공통 변수 초기화
 img_base64 = ""
