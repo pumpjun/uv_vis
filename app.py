@@ -11,120 +11,40 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Ohyoung UV-Vis", layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# 🌟 1. 앱 모드 상태 관리 🌟
+# 🌟 1. 순정 라디오 버튼을 활용한 탭 메뉴 (완벽한 작동 보장) 🌟
 # ==========================================
-if "app_mode" not in st.session_state:
-    st.session_state.app_mode = "SPEC"
-    
-def set_app_mode(mode):
-    st.session_state.app_mode = mode
-
-app_mode = st.session_state.app_mode
-active_spec_class = "active" if app_mode == "SPEC" else ""
-active_mix_class = "active" if app_mode == "MIX" else ""
-
-
-# ==========================================
-# 🌟 2. 숨겨진 Streamlit 트리거 버튼 & JS 제어 🌟
-# ==========================================
-with st.sidebar:
-    st.button("BTN_SPEC", on_click=set_app_mode, args=("SPEC",), key="btn_spec")
-    st.button("BTN_MIX", on_click=set_app_mode, args=("MIX",), key="btn_mix")
-
-# 🔥 [핵심 해결 1] display:none 대신 투명하게 숨겨서 클릭이 100% 작동하도록 수정
-hide_and_trigger_js = """
-<script>
-    const parent = window.parent.document;
-    
-    function hideButtons() {
-        const buttons = parent.querySelectorAll('button');
-        buttons.forEach(btn => {
-            if (btn.innerText.includes('BTN_SPEC') || btn.innerText.includes('BTN_MIX')) {
-                let container = btn.closest('.element-container');
-                if (container) {
-                    container.style.position = 'absolute';
-                    container.style.opacity = '0';
-                    container.style.pointerEvents = 'none';
-                    container.style.height = '0px';
-                }
-            }
-        });
-    }
-    setTimeout(hideButtons, 10);
-    setTimeout(hideButtons, 100);
-
-    window.parent.triggerClick = function(targetMode) {
-        const targetText = targetMode === 'SPEC' ? 'BTN_SPEC' : 'BTN_MIX';
-        const buttons = parent.querySelectorAll('button');
-        for (let btn of buttons) {
-            if (btn.innerText.includes(targetText)) {
-                btn.click();
-                break;
-            }
-        }
-    }
-</script>
-"""
-st.components.v1.html(hide_and_trigger_js, height=0)
-
-
-# ==========================================
-# 🌟 3. 상단 고정 메뉴바 및 UI 커스텀 CSS/HTML 🌟
-# ==========================================
-try:
-    with open("logo.png", "rb") as image_file:
-        logo_base64 = base64.b64encode(image_file.read()).decode()
-except Exception:
-    logo_base64 = ""
-
-# 🔥 [핵심 해결 2] 마크다운 파서가 오류를 내지 못하도록 HTML 태그를 엄격하게 구조화
-header_html = f"""
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+# st.radio를 가로로 배치하여 탭처럼 보이게 만듭니다. config.toml 색상이 자동 적용됩니다.
+st.markdown("""
 <style>
-    [data-testid="stHeader"] {{ display: none !important; }}
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
-    
-    .fixed-header {{
-        position: fixed; top: 0; left: 0; width: 100vw; height: 60px;
-        background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
-        z-index: 999998; display: flex; align-items: center; padding-left: 20px; border-bottom: 1px solid rgba(128,128,128,0.2);
-    }}
-    .fixed-header img {{ width: 45px; margin-right: 12px; }}
-    .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
-    
-    .top-menu-btn {{
-        background-color: transparent; color: var(--text-color); border: 1px solid rgba(128,128,128,0.3);
-        padding: 8px 16px; margin-right: 12px; border-radius: 8px; font-size: 15px; font-weight: 600;
-        cursor: pointer; display: flex; align-items: center; transition: all 0.2s ease;
-    }}
-    .top-menu-btn:hover {{ border-color: var(--primary-color, #2b5ce6); color: var(--primary-color, #2b5ce6); }}
-    .top-menu-btn.active {{ background-color: var(--primary-color, #2b5ce6); color: white; border-color: var(--primary-color, #2b5ce6); }}
-    .top-menu-btn.active:hover {{ color: white; }}
-    
-    .block-container {{ padding-top: 80px !important; }}
-    [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
-    [data-testid="stSidebarUserContent"] {{ padding-top: 10px !important; padding-bottom: 10px !important; }}
-    [data-testid="stSidebarUserContent"] > div {{ gap: 0.5rem !important; }}
-    div.element-container {{ margin-bottom: 0 !important; }}
-    .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
-    .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
-    [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
+    /* 라디오 버튼을 버튼(탭)처럼 예쁘게 꾸미는 CSS */
+    div.row-widget.stRadio > div { flex-direction: row; gap: 10px; }
+    div.row-widget.stRadio > div > label { 
+        background-color: transparent; 
+        padding: 8px 20px; 
+        border: 1px solid #d6d9df; 
+        border-radius: 8px; 
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    div.row-widget.stRadio > div > label:hover { border-color: var(--primary-color); }
+    div.row-widget.stRadio > div > label[data-checked="true"] { 
+        background-color: var(--primary-color); 
+        color: white; 
+        border-color: var(--primary-color); 
+    }
+    /* 기본 동그라미 라디오 마커 숨기기 */
+    div.row-widget.stRadio > div > label > div:first-child { display: none; }
 </style>
+""", unsafe_allow_html=True)
 
-<div class="fixed-header">
-    <img src="data:image/png;base64,{logo_base64}" onerror="this.style.display='none'">
-    <h2>Ohyoung UV-Vis</h2>
-    <button class="top-menu-btn {active_spec_class}" onclick="window.parent.triggerClick('SPEC')">
-        <span class="material-symbols-outlined" style="margin-right: 6px; font-size: 18px;">bar_chart</span>스펙트럼 비교
-    </button>
-    <button class="top-menu-btn {active_mix_class}" onclick="window.parent.triggerClick('MIX')">
-        <span class="material-symbols-outlined" style="margin-right: 6px; font-size: 18px;">science</span>혼합 비율 예측
-    </button>
-</div>
-"""
-st.write(header_html, unsafe_allow_html=True)
+# 탭 메뉴 생성 (본문 최상단)
+app_mode = st.radio(
+    "메뉴 선택", 
+    ["📊 스펙트럼 비교", "🧪 혼합 비율 예측"], 
+    horizontal=True, 
+    label_visibility="collapsed"
+)
+st.markdown("<hr style='margin: 5px 0 20px 0;'>", unsafe_allow_html=True)
 
 
 # --- 데이터 불러오기 ---
@@ -143,6 +63,19 @@ def change_dye_type(dye_name):
 # ==========================================
 # 왼쪽 사이드바 (조작부)
 # ==========================================
+# 🌟 로고 및 타이틀을 사이드바 상단에 예쁘게 배치 (겹침 방지)
+try:
+    with open("logo.png", "rb") as image_file:
+        logo_base64 = base64.b64encode(image_file.read()).decode()
+    st.sidebar.markdown(f"""
+        <div style='display: flex; align-items: center; margin-bottom: 20px;'>
+            <img src='data:image/png;base64,{logo_base64}' style='width: 45px; margin-right: 12px;'>
+            <h2 style='margin: 0; font-size: 22px; color: #31333F;'>Ohyoung UV-Vis</h2>
+        </div>
+    """, unsafe_allow_html=True)
+except Exception:
+    st.sidebar.title("Ohyoung UV-Vis")
+
 st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>folder_open</span>데이터베이스 선택</h3>", unsafe_allow_html=True)
 col_d1, col_d2 = st.sidebar.columns(2)
 
@@ -300,7 +233,7 @@ table_rows_html = ""
 # ==========================================
 # 모드 1: 스펙트럼 비교 분석
 # ==========================================
-if app_mode == "SPEC":
+if app_mode == "📊 스펙트럼 비교":
     col_title, col_btn = st.columns([4, 1])
     with col_title:
         st.markdown("<h2 style='margin-top:0; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>bar_chart</span>스펙트럼 일반 비교 분석</h2>", unsafe_allow_html=True)
@@ -381,13 +314,11 @@ if app_mode == "SPEC":
             yaxis=dict(showgrid=True, gridcolor='#eaeaea')
         )
         
-        # ⚠️ Kaleido 오류 무시용 Try-Except
         try:
             img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
             img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         except Exception:
             img_base64 = ""
-            st.warning("⚠️ 서버 환경 문제로 인쇄용 그래프 캡처 기능이 비활성화되었습니다. (화면 분석은 정상 작동합니다)")
         
         conc_summary_web = conc_summary_print = ""
         if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
@@ -433,7 +364,7 @@ if app_mode == "SPEC":
 # ==========================================
 # 모드 2: 다성분 혼합 비율 예측 (NNLS)
 # ==========================================
-elif app_mode == "MIX":
+elif app_mode == "🧪 혼합 비율 예측":
     col_title, col_btn = st.columns([4, 1])
     with col_title:
         st.markdown("<h2 style='margin-top:0; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>science</span>다성분 혼합 비율 예측 (NNLS)</h2>", unsafe_allow_html=True)
@@ -542,8 +473,8 @@ elif app_mode == "MIX":
 # 🖨️ 공통 인쇄 (PDF 저장) 버튼 로직
 # ==========================================
 if img_base64:
-    header_th = "<th>Name</th><th>Peaks(nm)</th><th>Abs(AU)</th>" if app_mode == "SPEC" else "<th>Component Name</th><th>Ratio (%)</th><th>Coefficient</th>"
-    report_title = "UV-Vis 분석 보고서 (일반 비교)" if app_mode == "SPEC" else "UV-Vis 분석 보고서 (혼합 비율 예측)"
+    header_th = "<th>Name</th><th>Peaks(nm)</th><th>Abs(AU)</th>" if app_mode == "📊 스펙트럼 비교" else "<th>Component Name</th><th>Ratio (%)</th><th>Coefficient</th>"
+    report_title = "UV-Vis 분석 보고서 (일반 비교)" if app_mode == "📊 스펙트럼 비교" else "UV-Vis 분석 보고서 (혼합 비율 예측)"
     
     print_js = f'''
     <script>
