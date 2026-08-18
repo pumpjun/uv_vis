@@ -34,12 +34,12 @@ with col_m2:
               on_click=set_app_mode, args=("MIX",))
 
 # ==========================================
-# 🌟 3. 본문 겹침 방지용 강력한 여백 🌟
+# 🌟 3. 본문 겹침 방지용 강력한 여백 (물리적 차단막) 🌟
 # ==========================================
 st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_html=True)
 
 # ==========================================
-# 🌟 4. 진짜 상단 고정 메뉴바 및 UI 커스텀 CSS 🌟
+# 🌟 4. 진짜 상단 고정 메뉴바 및 완벽 복구된 CSS 🌟
 # ==========================================
 try:
     with open("logo.png", "rb") as image_file:
@@ -76,6 +76,8 @@ st.markdown(f'''
     div.element-container {{ margin-bottom: 0 !important; }}
     .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
     .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
+    
+    /* 화면 흔들림(Jittering) 방지 */
     [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
 </style>
 
@@ -191,7 +193,7 @@ target_series_sd = None
 # 🎯 타겟 드롭다운 선택
 # ==========================================
 if uploaded_spectra:
-    st.sidebar.markdown("<div style='margin-top: 15px; margin-bottom: 5px; color: #2e7af5; font-weight: bold;'>🎯 타겟(기준) 스펙트럼 선택</div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='margin-top: 15px; margin-bottom: 5px; color: var(--primary-color, #2e7af5); font-weight: bold; display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:6px;'>my_location</span>타겟(기준) 스펙트럼 선택</div>", unsafe_allow_html=True)
     target_name = st.sidebar.selectbox("타겟 선택", options=list(uploaded_spectra.keys()), label_visibility="collapsed")
     target_series_sd = uploaded_spectra[target_name]
 
@@ -220,6 +222,7 @@ if uploaded_spectra:
             key=f"ms_up_{st.session_state.dye_type}"
         )
 
+# 최종 합산 리스트
 selected_dyes = selected_db_dyes + selected_upload_dyes
 if len(selected_dyes) > max_sel:
     st.sidebar.warning(f"최대 {max_sel}개까지만 선택 가능합니다. 초과분은 제외됩니다.")
@@ -274,6 +277,9 @@ if app_mode == "SPEC":
 
     for dye in dyes_to_plot:
         plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
+
+    df_summary = pd.DataFrame()
+    copy_text_js = ""
 
     if len(plot_items) > 0:
         fig = go.Figure()
@@ -333,7 +339,6 @@ if app_mode == "SPEC":
 
         col_left, col_right = st.columns([1, 2])
         with col_right:
-            st.info("💡 **그래프 이미지 복사:** 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 누르시면 워드나 PPT에 예쁘게 붙여넣을 수 있습니다.")
             st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
             
         with col_left:
@@ -525,7 +530,6 @@ elif app_mode == "MIX":
             st.components.v1.html(copy_btn_html, height=50)
         
         with col_n2:
-            st.info("💡 **그래프 이미지 복사:** 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 누르시면 워드나 PPT에 예쁘게 붙여넣을 수 있습니다.")
             fig_nnls = go.Figure()
             
             fig_nnls.add_trace(go.Scatter(
