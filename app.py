@@ -22,9 +22,9 @@ def set_app_mode(mode):
 app_mode = st.session_state.app_mode
 
 # ==========================================
-# 🌟 2. 순정 메뉴 버튼 생성 (무조건 가장 먼저 작성!) 🌟
-# 이 버튼 2개는 아래 CSS에 의해 자동으로 상단 메뉴바 안으로 쏙 들어갑니다.
-# 순정 st.button이기 때문에 클릭 먹통이 절대 없고, config.toml 색상이 100% 적용됩니다.
+# 🌟 2. 순정 메뉴 버튼 생성 (가장 먼저 작성!) 🌟
+# 이전의 '완벽하게 작동했던' 바로 그 순정 버튼 코드입니다.
+# config.toml 색상이 완벽하게 자동 적용되며, 절대 먹통이 되지 않습니다.
 # ==========================================
 col_m1, col_m2 = st.columns(2)
 with col_m1:
@@ -38,11 +38,12 @@ with col_m2:
 
 # ==========================================
 # 🌟 3. 본문 겹침 방지용 강력한 여백 (물리적 차단막) 🌟
+# 버튼이 상단바로 이동하며 생긴 빈자리를 채워줍니다.
 # ==========================================
-st.markdown("<div style='height: 50px; display: block;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_html=True)
 
 # ==========================================
-# 🌟 4. 진짜 상단 고정 메뉴바 (Top Navbar) 및 UI 커스텀 CSS 🌟
+# 🌟 4. 진짜 상단 고정 메뉴바 및 완벽 복구된 CSS 🌟
 # ==========================================
 try:
     with open("logo.png", "rb") as image_file:
@@ -53,13 +54,13 @@ except Exception:
 st.markdown(f'''
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    /* 기본 헤더 및 불필요한 공백 숨기기 */
+    /* 기본 헤더 숨기기 */
     [data-testid="stHeader"] {{ display: none !important; }}
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
     
-    /* 상단 고정 바 디자인 껍데기 */
+    /* 상단 고정 바 껍데기 */
     .fixed-header {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 60px;
         background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
@@ -68,18 +69,14 @@ st.markdown(f'''
     .fixed-header img {{ width: 45px; margin-right: 12px; }}
     .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
     
-    /* 🌟 핵심 해결: "첫 번째 생성된 버튼 영역"만 콕 집어서 상단바 안으로 완벽히 이동 🌟 */
-    section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]:first-of-type {{
-        position: fixed !important;
-        top: 11px !important;
-        left: 290px !important; /* 타이틀 글씨 바로 우측에 위치 */
-        width: 380px !important;
-        z-index: 999999 !important;
-        background-color: transparent !important;
+    /* 🔥 핵심 복구: 사용자님이 만족하셨던 "버튼만 상단바로 쏙 들어가는" 전설의(?) CSS 선택자 복구! 🔥 */
+    [data-testid="stMainBlockContainer"] > div > div:first-child {{
+        position: fixed !important; top: 11px !important; left: 290px !important; 
+        width: 380px !important; z-index: 999999 !important; background-color: transparent !important;
     }}
     
-    /* 본문 영역 밀림 방지 */
-    .block-container, .stMainBlockContainer {{ padding-top: 80px !important; }}
+    /* 본문 영역 밀림(겹침) 완벽 방지 */
+    .block-container {{ padding-top: 90px !important; }}
     
     /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
@@ -89,7 +86,7 @@ st.markdown(f'''
     .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
     .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
     
-    /* 🔥 화면 흔들림(Jittering) 완벽 방지 🔥 */
+    /* 화면 흔들림(Jittering) 방지 */
     [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
 </style>
 
@@ -190,7 +187,6 @@ if uploaded_files:
     if not uploaded_spectra:
         st.sidebar.error("업로드된 파일에서 유효한 스펙트럼을 찾을 수 없습니다.", icon=":material/error:")
 
-
 # 업로드된 데이터와 기존 DB 병합
 if uploaded_spectra:
     uploaded_df = pd.DataFrame(uploaded_spectra).T
@@ -270,13 +266,14 @@ img_base64 = ""
 summary_box_html = ""
 table_rows_html = ""
 
+
 # ==========================================
 # 모드 1: 스펙트럼 비교 분석
 # ==========================================
 if app_mode == "SPEC":
     col_title, col_btn = st.columns([4, 1])
     with col_title:
-        st.markdown("<h2 style='margin-top:0; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>bar_chart</span>스펙트럼 일반 비교 분석</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='margin-top: 15px; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>bar_chart</span>스펙트럼 일반 비교 분석</h2>", unsafe_allow_html=True)
         
     plot_items = []
     best_match = None
@@ -354,13 +351,11 @@ if app_mode == "SPEC":
             yaxis=dict(showgrid=True, gridcolor='#eaeaea')
         )
         
-        # ⚠️ Kaleido 오류 무시용 Try-Except (앱 다운 완벽 방지)
         try:
             img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
             img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         except Exception:
             img_base64 = ""
-            st.warning("⚠️ 서버 환경 문제로 인쇄용 그래프 캡처 기능이 임시 비활성화되었습니다. (화면 분석은 모두 정상 작동합니다)")
         
         conc_summary_web = conc_summary_print = ""
         if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
@@ -409,7 +404,7 @@ if app_mode == "SPEC":
 elif app_mode == "MIX":
     col_title, col_btn = st.columns([4, 1])
     with col_title:
-        st.markdown("<h2 style='margin-top:0; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>science</span>다성분 혼합 비율 예측 (NNLS)</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='margin-top: 15px; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>science</span>다성분 혼합 비율 예측 (NNLS)</h2>", unsafe_allow_html=True)
         st.caption("선택한 성분 데이터들을 어떤 비율로 섞어야 타겟 스펙트럼이 되는지 분석합니다.")
 
     mix_target_series = None
