@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import io
-import base64
 import struct
 from scipy.optimize import nnls
 import plotly.graph_objects as go
@@ -23,8 +21,6 @@ app_mode = st.session_state.app_mode
 
 # ==========================================
 # 🌟 2. 순정 메뉴 버튼 생성 (가장 먼저 작성!) 🌟
-# 이전의 '완벽하게 작동했던' 바로 그 순정 버튼 코드입니다.
-# config.toml 색상이 완벽하게 자동 적용되며, 절대 먹통이 되지 않습니다.
 # ==========================================
 col_m1, col_m2 = st.columns(2)
 with col_m1:
@@ -38,13 +34,13 @@ with col_m2:
 
 # ==========================================
 # 🌟 3. 본문 겹침 방지용 강력한 여백 (물리적 차단막) 🌟
-# 버튼이 상단바로 이동하며 생긴 빈자리를 채워줍니다.
 # ==========================================
 st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_html=True)
 
 # ==========================================
 # 🌟 4. 진짜 상단 고정 메뉴바 및 완벽 복구된 CSS 🌟
 # ==========================================
+import base64
 try:
     with open("logo.png", "rb") as image_file:
         logo_base64 = base64.b64encode(image_file.read()).decode()
@@ -69,7 +65,7 @@ st.markdown(f'''
     .fixed-header img {{ width: 45px; margin-right: 12px; }}
     .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
     
-    /* 🔥 핵심 복구: 사용자님이 만족하셨던 "버튼만 상단바로 쏙 들어가는" 전설의(?) CSS 선택자 복구! 🔥 */
+    /* 🌟 버튼만 상단바로 쏙 들어가는 선택자 🌟 */
     [data-testid="stMainBlockContainer"] > div > div:first-child {{
         position: fixed !important; top: 11px !important; left: 290px !important; 
         width: 380px !important; z-index: 999999 !important; background-color: transparent !important;
@@ -88,6 +84,14 @@ st.markdown(f'''
     
     /* 화면 흔들림(Jittering) 방지 */
     [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
+    
+    /* 🖨️ 인쇄 시 화면을 깔끔하게 만드는 CSS */
+    @media print {{
+        .fixed-header, [data-testid="stSidebar"], [data-testid="stHeader"], .stDownloadButton, iframe {{
+            display: none !important;
+        }}
+        .block-container {{ padding-top: 0 !important; max-width: 100% !important; }}
+    }}
 </style>
 
 <div class="fixed-header">
@@ -128,7 +132,6 @@ try:
 except FileNotFoundError:
     st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.", icon=":material/error:")
     st.stop()
-
 
 # ==========================================
 # 🌟 [다중 파일 및 다중 데이터 추출] 업로드부 🌟
@@ -261,12 +264,6 @@ st.sidebar.caption("Created by tskwon :material/science:")
 # 공용 차트 색상 팔레트
 color_palette = ['black', 'red', 'blue', 'purple', 'green', 'orange', 'brown', 'pink']
 
-# 인쇄용 공통 변수 초기화
-img_base64 = ""
-summary_box_html = ""
-table_rows_html = ""
-
-
 # ==========================================
 # 모드 1: 스펙트럼 비교 분석
 # ==========================================
@@ -306,8 +303,7 @@ if app_mode == "SPEC":
             color = color_palette[i % len(color_palette)] 
             
             fig.add_trace(go.Scatter(
-                x=series.index, y=series.values, 
-                mode='lines', name=name, 
+                x=series.index, y=series.values, mode='lines', name=name, 
                 line=dict(color=color, width=1.5)
             ))
             
@@ -318,14 +314,11 @@ if app_mode == "SPEC":
                 p_abs = range_series.max()
                 
                 fig.add_trace(go.Scatter(
-                    x=[p_wave], y=[p_abs], 
-                    mode='markers+text', 
+                    x=[p_wave], y=[p_abs], mode='markers+text', 
                     marker=dict(color=color, size=8),
                     text=[f"{p_wave:.0f}nm<br>({p_abs:.2f})"],
-                    textposition="top right",
-                    textfont=dict(color=color, size=11),
-                    showlegend=False,
-                    hoverinfo='skip'
+                    textposition="top right", textfont=dict(color=color, size=11),
+                    showlegend=False, hoverinfo='skip'
                 ))
                 
                 table_data["Name"].append(name)
@@ -339,30 +332,19 @@ if app_mode == "SPEC":
 
         fig.update_layout(
             title=f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)",
-            xaxis_title="Wavelength (nm)",
-            yaxis_title="Absorbance (AU)",
-            hovermode="x unified",
-            margin=dict(l=40, r=40, t=60, b=40),
+            xaxis_title="Wavelength (nm)", yaxis_title="Absorbance (AU)",
+            hovermode="x unified", margin=dict(l=40, r=40, t=60, b=40),
             legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            dragmode="zoom",
+            plot_bgcolor='white', paper_bgcolor='white', dragmode="zoom",
             xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]), 
             yaxis=dict(showgrid=True, gridcolor='#eaeaea')
         )
         
-        try:
-            img_bytes = fig.to_image(format="png", engine="kaleido", scale=2)
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-        except Exception:
-            img_base64 = ""
-        
-        conc_summary_web = conc_summary_print = ""
+        conc_summary_web = ""
         if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
             conc_summary_web = f"- **농도 분석:** {target_name}이 {match_name_for_conc} 대비 약 **{abs(conc_diff_pct):.1f}%** 더 {direction_str}."
-            conc_summary_print = f"<b>농도 분석:</b> {target_name}이 {match_name_for_conc} 대비 약 <b>{abs(conc_diff_pct):.1f}%</b> 더 {direction_str}."
 
         col_left, col_right = st.columns([1, 2])
         with col_right:
@@ -372,6 +354,7 @@ if app_mode == "SPEC":
             st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
             if conc_summary_web: st.write(conc_summary_web)
             
+            df_summary = pd.DataFrame()
             if table_data["Name"]:
                 df_summary = pd.DataFrame(table_data)
                 df_summary.index = range(1, len(df_summary) + 1)
@@ -381,22 +364,24 @@ if app_mode == "SPEC":
                     return [f'color: {color}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
-        # 인쇄용 포맷 세팅
-        for idx in range(len(table_data["Name"])):
-            c = color_palette[idx % len(color_palette)]
-            table_rows_html += f"<tr style='color: {c}; font-weight: bold; border-bottom: 1px solid #ddd;'>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Name'][idx]}</td>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Peaks(nm)'][idx]}</td>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{table_data['Abs(AU)'][idx]}</td>"
-            table_rows_html += "</tr>"
+        # ==========================================
+        # 🖨️ 그래프 저장 및 표 다운로드 UI (SPEC 모드)
+        # ==========================================
+        st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
+        st.info("💡 **그래프 저장 팁:** 그래프 우측 상단 모서리에 마우스를 올리고 **📷 (카메라 아이콘)**을 누르면 그래프가 고화질 이미지(PNG)로 다운로드됩니다.")
         
-        if conc_summary_print:
-            summary_box_html = f'''
-            <div style="margin-top: 25px; margin-bottom: 10px; padding: 12px 15px; font-size: 14pt; background-color: #f8f9fa; border-left: 5px solid #2e7af5; border-radius: 4px; display: flex; align-items: center;">
-                <span class="material-symbols-outlined" style="margin-right: 8px;">lightbulb</span>
-                <span>{conc_summary_print}</span>
-            </div>
-            '''
+        c1, c2, c3 = st.columns([2, 2, 4])
+        with c1:
+            if not df_summary.empty:
+                csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("📥 결과 표 다운로드 (CSV)", data=csv_data, file_name="spectrum_result.csv", mime="text/csv", use_container_width=True)
+        with c2:
+            st.components.v1.html('''
+                <button onclick="window.parent.print()" style="width: 100%; background-color: #2e7af5; color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85 34.5t35 85.5v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-480H200q-17 0-28.5 11.5T160-440v160h80v-80h480v80h80Z"/></svg>
+                    화면 인쇄 (PDF 저장)
+                </button>
+            ''', height=45)
 
 # ==========================================
 # 모드 2: 다성분 혼합 비율 예측 (NNLS)
@@ -458,101 +443,41 @@ elif app_mode == "MIX":
             fig_nnls = go.Figure()
             
             fig_nnls.add_trace(go.Scatter(
-                x=common_wvl, y=Y_nnls, 
-                mode='lines', name=f"Original ({mix_target_name})", 
+                x=common_wvl, y=Y_nnls, mode='lines', name=f"Original ({mix_target_name})", 
                 line=dict(color='black', width=1.5)
             ))
             
             fig_nnls.add_trace(go.Scatter(
-                x=common_wvl, y=Y_pred, 
-                mode='lines', name="Reconstructed (Simulated)", 
+                x=common_wvl, y=Y_pred, mode='lines', name="Reconstructed (Simulated)", 
                 line=dict(color='red', width=1.5, dash='dash')
             ))
 
             fig_nnls.update_layout(
                 title=f"Target vs Reconstructed Spectrum",
-                xaxis_title="Wavelength (nm)",
-                yaxis_title="Absorbance (AU)",
-                hovermode="x unified",
-                margin=dict(l=40, r=40, t=60, b=40),
+                xaxis_title="Wavelength (nm)", yaxis_title="Absorbance (AU)",
+                hovermode="x unified", margin=dict(l=40, r=40, t=60, b=40),
                 legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
-                plot_bgcolor='white',
-                paper_bgcolor='white',
-                dragmode="zoom",
+                plot_bgcolor='white', paper_bgcolor='white', dragmode="zoom",
                 xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]),
                 yaxis=dict(showgrid=True, gridcolor='#eaeaea')
             )
             
-            try:
-                img_bytes = fig_nnls.to_image(format="png", engine="kaleido", scale=2)
-                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-            except Exception:
-                img_base64 = ""
-
             st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
 
-        table_rows_html = f"<tr style='background-color:#eee; font-weight:bold;'><td colspan='3'>Target: {mix_target_name}</td></tr>"
-        for _, row in nnls_df.iterrows():
-            table_rows_html += f"<tr style='border-bottom: 1px solid #ddd;'>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{row['Name']}</td>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{row['Ratio(%)']:.1f}%</td>"
-            table_rows_html += f"<td style='padding: 12px; border: 1px solid #ddd;'>{row['Coefficient']:.4f}</td>"
-            table_rows_html += "</tr>"
-            
-        summary_box_html = f'''
-        <div style="margin-top: 25px; margin-bottom: 10px; padding: 12px 15px; font-size: 14pt; background-color: #f8f9fa; border-left: 5px solid #ff4b4b; border-radius: 4px; display: flex; align-items: center;">
-            <span class="material-symbols-outlined" style="margin-right: 8px;">science</span>
-            <span>{nnls_summary_print}</span>
-        </div>
-        '''
-
-# ==========================================
-# 🖨️ 공통 인쇄 (PDF 저장) 버튼 로직
-# ==========================================
-if img_base64:
-    header_th = "<th>Name</th><th>Peaks(nm)</th><th>Abs(AU)</th>" if app_mode == "SPEC" else "<th>Component Name</th><th>Ratio (%)</th><th>Coefficient</th>"
-    report_title = "UV-Vis 분석 보고서 (일반 비교)" if app_mode == "SPEC" else "UV-Vis 분석 보고서 (혼합 비율 예측)"
-    
-    print_js = f'''
-    <script>
-    function printReport() {{
-        const parentDoc = window.parent.document;
-        let iframe = parentDoc.getElementById('print-iframe');
-        if (!iframe) {{
-            iframe = parentDoc.createElement('iframe');
-            iframe.id = 'print-iframe';
-            iframe.style.position = 'absolute'; iframe.style.width = '0px'; iframe.style.height = '0px'; iframe.style.border = 'none';
-            parentDoc.body.appendChild(iframe);
-        }}
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        doc.write(`
-            <html>
-            <head>
-                <style>
-                    @page {{ size: A4 portrait; margin: 15mm; }}
-                    body {{ font-family: sans-serif; margin: 0; padding: 0; }}
-                    table {{ width: 100%; border-collapse: collapse; font-size: 14pt; text-align: center; border: 1px solid #ddd; margin-top: 20px; }}
-                    th {{ background-color: #f4f4f4; padding: 12px; border: 1px solid #ddd; }}
-                </style>
-            </head>
-            <body>
-                <h2 style="text-align: center; margin-bottom: 20px;">{report_title}</h2>
-                <img src="data:image/png;base64,{img_base64}" style="width: 100%; height: auto;">
-                {summary_box_html}
-                <table><tr>{header_th}</tr>{table_rows_html}</table>
-            </body>
-            </html>
-        `);
-        doc.close();
-        setTimeout(() => {{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }}, 500);
-    }}
-    </script>
-    <div style="display:flex; justify-content:flex-end;">
-        <button onclick="printReport()" style="background-color: var(--primary-color, #2e7af5); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: bold; margin-top: 20px; display: flex; align-items: center; gap: 6px;">
-            <span class="material-symbols-outlined" style="font-size:18px;">print</span> 인쇄 (PDF 저장)
-        </button>
-    </div>
-    '''
-    with col_btn:
-        st.components.v1.html(print_js, height=70)
+        # ==========================================
+        # 🖨️ 그래프 저장 및 표 다운로드 UI (MIX 모드)
+        # ==========================================
+        st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
+        st.info("💡 **그래프 저장 팁:** 그래프 우측 상단 모서리에 마우스를 올리고 **📷 (카메라 아이콘)**을 누르면 그래프가 고화질 이미지(PNG)로 다운로드됩니다.")
+        
+        c1, c2, c3 = st.columns([2, 2, 4])
+        with c1:
+            csv_data = nnls_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📥 혼합 비율 다운로드 (CSV)", data=csv_data, file_name="mix_ratio_result.csv", mime="text/csv", use_container_width=True)
+        with c2:
+            st.components.v1.html('''
+                <button onclick="window.parent.print()" style="width: 100%; background-color: #2e7af5; color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85 34.5t35 85.5v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-480H200q-17 0-28.5 11.5T160-440v160h80v-80h480v80h80Z"/></svg>
+                    화면 인쇄 (PDF 저장)
+                </button>
+            ''', height=45)
