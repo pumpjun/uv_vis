@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import base64
 import struct
 from scipy.optimize import nnls
 import plotly.graph_objects as go
@@ -40,7 +41,6 @@ st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_ht
 # ==========================================
 # 🌟 4. 진짜 상단 고정 메뉴바 및 완벽 복구된 CSS 🌟
 # ==========================================
-import base64
 try:
     with open("logo.png", "rb") as image_file:
         logo_base64 = base64.b64encode(image_file.read()).decode()
@@ -50,13 +50,11 @@ except Exception:
 st.markdown(f'''
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    /* 기본 헤더 숨기기 */
     [data-testid="stHeader"] {{ display: none !important; }}
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
     
-    /* 상단 고정 바 껍데기 */
     .fixed-header {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 60px;
         background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
@@ -65,16 +63,13 @@ st.markdown(f'''
     .fixed-header img {{ width: 45px; margin-right: 12px; }}
     .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
     
-    /* 🌟 버튼만 상단바로 쏙 들어가는 선택자 🌟 */
+    /* 버튼만 상단바로 쏙 들어가는 핵심 CSS */
     [data-testid="stMainBlockContainer"] > div > div:first-child {{
         position: fixed !important; top: 11px !important; left: 290px !important; 
         width: 380px !important; z-index: 999999 !important; background-color: transparent !important;
     }}
     
-    /* 본문 영역 밀림(겹침) 완벽 방지 */
     .block-container {{ padding-top: 90px !important; }}
-    
-    /* 사이드바 여백 최적화 */
     [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
     [data-testid="stSidebarUserContent"] {{ padding-top: 10px !important; padding-bottom: 10px !important; }}
     [data-testid="stSidebarUserContent"] > div {{ gap: 0.5rem !important; }}
@@ -84,14 +79,6 @@ st.markdown(f'''
     
     /* 화면 흔들림(Jittering) 방지 */
     [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
-    
-    /* 🖨️ 인쇄 시 화면을 깔끔하게 만드는 CSS */
-    @media print {{
-        .fixed-header, [data-testid="stSidebar"], [data-testid="stHeader"], .stDownloadButton, iframe {{
-            display: none !important;
-        }}
-        .block-container {{ padding-top: 0 !important; max-width: 100% !important; }}
-    }}
 </style>
 
 <div class="fixed-header">
@@ -132,6 +119,7 @@ try:
 except FileNotFoundError:
     st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.", icon=":material/error:")
     st.stop()
+
 
 # ==========================================
 # 🌟 [다중 파일 및 다중 데이터 추출] 업로드부 🌟
@@ -210,13 +198,12 @@ if uploaded_spectra:
     target_series_sd = uploaded_spectra[target_name]
 
 # ==========================================
-# 🎨 1. DB 염료 선택 & 2. 다른 업로드 성분 선택 분리
+# 🎨 비교/구성 성분 선택
 # ==========================================
 st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 15px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>palette</span>비교/구성 성분 선택</h3>", unsafe_allow_html=True)
 
 max_sel = 6
 
-# 1. DB 염료에서 선택
 selected_db_dyes = st.sidebar.multiselect(
     f"1. DB 염료에서 선택 (최대 {max_sel}개):", 
     options=df.index.tolist(),
@@ -224,7 +211,6 @@ selected_db_dyes = st.sidebar.multiselect(
     key=f"ms_db_{st.session_state.dye_type}"
 )
 
-# 2. 업로드 데이터에서 선택 (타겟 본인 제외)
 selected_upload_dyes = []
 if uploaded_spectra:
     upload_choices = [k for k in uploaded_spectra.keys() if k != target_name]
@@ -236,7 +222,6 @@ if uploaded_spectra:
             key=f"ms_up_{st.session_state.dye_type}"
         )
 
-# 최종 합산 리스트
 selected_dyes = selected_db_dyes + selected_upload_dyes
 if len(selected_dyes) > max_sel:
     st.sidebar.warning(f"최대 {max_sel}개까지만 선택 가능합니다. 초과분은 제외됩니다.")
@@ -261,8 +246,8 @@ except ValueError:
 
 st.sidebar.caption("Created by tskwon :material/science:")
 
-# 공용 차트 색상 팔레트
 color_palette = ['black', 'red', 'blue', 'purple', 'green', 'orange', 'brown', 'pink']
+
 
 # ==========================================
 # 모드 1: 스펙트럼 비교 분석
@@ -291,6 +276,9 @@ if app_mode == "SPEC":
 
     for dye in dyes_to_plot:
         plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
+
+    df_summary = pd.DataFrame()
+    copy_text_js = ""
 
     if len(plot_items) > 0:
         fig = go.Figure()
@@ -341,10 +329,12 @@ if app_mode == "SPEC":
         )
         
         conc_summary_web = ""
+        plain_summary_text = ""
         if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
             conc_summary_web = f"- **농도 분석:** {target_name}이 {match_name_for_conc} 대비 약 **{abs(conc_diff_pct):.1f}%** 더 {direction_str}."
+            plain_summary_text = f"{target_name}이 {match_name_for_conc} 대비 약 {abs(conc_diff_pct):.1f}% 더 {direction_str}."
 
         col_left, col_right = st.columns([1, 2])
         with col_right:
@@ -354,7 +344,6 @@ if app_mode == "SPEC":
             st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
             if conc_summary_web: st.write(conc_summary_web)
             
-            df_summary = pd.DataFrame()
             if table_data["Name"]:
                 df_summary = pd.DataFrame(table_data)
                 df_summary.index = range(1, len(df_summary) + 1)
@@ -364,24 +353,53 @@ if app_mode == "SPEC":
                     return [f'color: {color}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
+                # 🌟 [텍스트 병합] 클립보드 복사용 데이터 생성 (워드,엑셀에 맞게 탭 분리)
+                copy_text = "[실무 분석 요약]\n"
+                if plain_summary_text:
+                    copy_text += plain_summary_text + "\n\n"
+                else:
+                    copy_text += "농도 비교 결과 없음\n\n"
+                
+                copy_text += "[스펙트럼 피크 데이터]\n"
+                copy_text += "Name\tPeaks(nm)\tAbs(AU)\n"
+                for idx in range(len(table_data["Name"])):
+                    copy_text += f"{table_data['Name'][idx]}\t{table_data['Peaks(nm)'][idx]}\t{table_data['Abs(AU)'][idx]}\n"
+                
+                copy_text_js = copy_text.replace('\n', '\\n').replace('"', '\\"').replace("'", "\\'")
+
         # ==========================================
-        # 🖨️ 그래프 저장 및 표 다운로드 UI (SPEC 모드)
+        # 📋 텍스트 복사 & 그래프 복사 안내 UI
         # ==========================================
         st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **그래프 저장 팁:** 그래프 우측 상단 모서리에 마우스를 올리고 **📷 (카메라 아이콘)**을 누르면 그래프가 고화질 이미지(PNG)로 다운로드됩니다.")
+        st.info("💡 **그래프 이미지 복사 팁:** 화면의 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 선택하시면 워드나 PPT에 그대로 붙여넣을 수 있습니다!")
         
         c1, c2, c3 = st.columns([2, 2, 4])
         with c1:
             if not df_summary.empty:
                 csv_data = df_summary.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("📥 결과 표 다운로드 (CSV)", data=csv_data, file_name="spectrum_result.csv", mime="text/csv", use_container_width=True)
+                st.download_button("📥 데이터 다운로드 (CSV)", data=csv_data, file_name="spectrum_result.csv", mime="text/csv", use_container_width=True)
         with c2:
-            st.components.v1.html('''
-                <button onclick="window.parent.print()" style="width: 100%; background-color: #2e7af5; color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85 34.5t35 85.5v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-480H200q-17 0-28.5 11.5T160-440v160h80v-80h480v80h80Z"/></svg>
-                    화면 인쇄 (PDF 저장)
+            if copy_text_js:
+                copy_btn_html = f"""
+                <button onclick="copyToClipboard()" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+                    표 + 농도분석 복사
                 </button>
-            ''', height=45)
+                <script>
+                function copyToClipboard() {{
+                    const text = "{copy_text_js}";
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                    alert('✅ 농도 분석 요약과 표 데이터가 복사되었습니다! 워드나 엑셀에서 Ctrl+V 를 눌러주세요.');
+                }}
+                </script>
+                """
+                st.components.v1.html(copy_btn_html, height=45)
+
 
 # ==========================================
 # 모드 2: 다성분 혼합 비율 예측 (NNLS)
@@ -429,6 +447,7 @@ elif app_mode == "MIX":
         }).sort_values(by="Ratio(%)", ascending=False)
         
         nnls_result_str = ", ".join([f"{row['Name']}({row['Ratio(%)']:.1f}%)" for _, row in nnls_df.iterrows() if row['Ratio(%)'] > 0.1])
+        plain_summary_text = f"[Target: {mix_target_name}]\n{nnls_result_str}"
         nnls_summary_print = f"<b>예측 혼합비(NNLS) [Target: {mix_target_name}]:</b> {nnls_result_str}"
         
         col_n1, col_n2 = st.columns([1, 2])
@@ -438,6 +457,16 @@ elif app_mode == "MIX":
                 nnls_df.style.format({"Ratio(%)": "{:.1f}%", "Coefficient": "{:.4f}"}),
                 use_container_width=True, hide_index=True
             )
+            
+            # 🌟 [텍스트 병합] 클립보드 복사용 데이터 생성 (워드,엑셀에 맞게 탭 분리)
+            copy_text = "[예측 혼합비 요약]\n"
+            copy_text += plain_summary_text + "\n\n"
+            copy_text += "[상세 구성 비율 표]\n"
+            copy_text += "Component Name\tRatio (%)\tCoefficient\n"
+            for _, row in nnls_df.iterrows():
+                copy_text += f"{row['Name']}\t{row['Ratio(%)']:.1f}%\t{row['Coefficient']:.4f}\n"
+            
+            copy_text_js = copy_text.replace('\n', '\\n').replace('"', '\\"').replace("'", "\\'")
         
         with col_n2:
             fig_nnls = go.Figure()
@@ -465,19 +494,32 @@ elif app_mode == "MIX":
             st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
 
         # ==========================================
-        # 🖨️ 그래프 저장 및 표 다운로드 UI (MIX 모드)
+        # 📋 텍스트 복사 & 그래프 복사 안내 UI
         # ==========================================
         st.markdown("<hr style='margin: 30px 0 10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **그래프 저장 팁:** 그래프 우측 상단 모서리에 마우스를 올리고 **📷 (카메라 아이콘)**을 누르면 그래프가 고화질 이미지(PNG)로 다운로드됩니다.")
+        st.info("💡 **그래프 이미지 복사 팁:** 화면의 그래프 위에서 **마우스 우클릭 -> [이미지 복사]** 를 선택하시면 워드나 PPT에 그대로 붙여넣을 수 있습니다!")
         
         c1, c2, c3 = st.columns([2, 2, 4])
         with c1:
             csv_data = nnls_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 혼합 비율 다운로드 (CSV)", data=csv_data, file_name="mix_ratio_result.csv", mime="text/csv", use_container_width=True)
+            st.download_button("📥 데이터 다운로드 (CSV)", data=csv_data, file_name="mix_ratio_result.csv", mime="text/csv", use_container_width=True)
         with c2:
-            st.components.v1.html('''
-                <button onclick="window.parent.print()" style="width: 100%; background-color: #2e7af5; color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M640-640v-120H320v120h-80v-200h480v200h-80Zm-480 80h640-640Zm560 100q17 0 28.5-11.5T760-500q0-17-11.5-28.5T720-540q-17 0-28.5 11.5T680-500q0 17 11.5 28.5T720-460Zm-80 260v-160H320v160h320Zm80 80H240v-160H80v-240q0-51 35-85.5t85-34.5h560q51 0 85 34.5t35 85.5v240H720v160Zm80-240v-160q0-17-11.5-28.5T760-480H200q-17 0-28.5 11.5T160-440v160h80v-80h480v80h80Z"/></svg>
-                    화면 인쇄 (PDF 저장)
-                </button>
-            ''', height=45)
+            copy_btn_html = f"""
+            <button onclick="copyToClipboard()" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 8px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+                표 + 혼합비율 복사
+            </button>
+            <script>
+            function copyToClipboard() {{
+                const text = "{copy_text_js}";
+                const el = document.createElement('textarea');
+                el.value = text;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                alert('✅ 혼합 예측 요약과 표 데이터가 복사되었습니다! 워드나 엑셀에서 Ctrl+V 를 눌러주세요.');
+            }}
+            </script>
+            """
+            st.components.v1.html(copy_btn_html, height=45)
