@@ -257,49 +257,69 @@ def predict_unknown_lab(series_sd):
 # ==========================================
 if app_mode == "SPEC":
     st.markdown("<h2 style='margin-top: 15px; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>bar_chart</span>스펙트럼 일반 비교 분석</h2>", unsafe_allow_html=True)
-    plot_items = []
-    best_match = None
+    
+    plot_items_all = []
+    best_matches = []
 
     if target_series_sd is not None and not target_series_sd.empty:
-        plot_items.append({"name": target_name, "data": target_series_sd, "is_target": True})
+        plot_items_all.append({"name": target_name, "data": target_series_sd, "is_target": True})
         common_wavelengths = df.columns.intersection(target_series_sd.index)
         
-        # 1. 형태(물질) 기준 1위 (상관계수)
+        # 1. 파장 형태(모양) 기준 1위
         correlations = df[common_wavelengths].T.corrwith(target_series_sd[common_wavelengths])
         best_shape = correlations.sort_values(ascending=False).index[0]
         
-        # 2. 높이+농도(절대값) 기준 1위 (예전 방식: 오차 최소)
+        # 2. 흡광도 높이(농도) 기준 1위
         errors = ((df[common_wavelengths] - target_series_sd[common_wavelengths]) ** 2).mean(axis=1)
         best_abs = errors.sort_values().index[0]
         
-        # 결과 메시지 출력 및 리스트화
-        best_matches = []
+        # 결과 출력
         if best_shape == best_abs:
             st.success(f"✨ 자동 매칭 완벽 일치! (추천 DB 염료: **{best_shape}**)", icon=":material/check_circle:")
             best_matches = [best_shape]
         else:
-            st.info(f"🔍 **물질(파장) 형태 매칭 1위:** {best_shape} / 💧 **농도(절대값) 매칭 1위:** {best_abs}", icon=":material/search:")
+            st.info(f"🔍 **물질 형태 1위:** {best_shape} / 💧 **농도(높이) 1위:** {best_abs}", icon=":material/search:")
             best_matches = [best_shape, best_abs]
 
     dyes_to_plot = selected_dyes.copy()
-    # 사용자가 DB 염료를 직접 선택하지 않았다면, 자동 매칭된 1~2개 염료를 그래프에 띄움
-    if target_series_sd is not None and len(dyes_to_plot) == 0 and 'best_matches' in locals():
+    if target_series_sd is not None and len(dyes_to_plot) == 0 and len(best_matches) > 0:
         dyes_to_plot = best_matches
 
+    # 리스트에 추가 (중복 방지)
+    added_names = [item["name"] for item in plot_items_all]
     for dye in dyes_to_plot:
-        plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
+        if dye not in added_names:
+            plot_items_all.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
+            added_names.append(dye)
+
+    col_left, col_right = st.columns([1, 2])
+    
+    # 🌟 [추가됨] 왼쪽 표 위에 체크박스 생성
+    active_plot_items = []
+    with col_left:
+        st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>checklist</span>그래프 표시 선택</h3>", unsafe_allow_html=True)
+        for i, item in enumerate(plot_items_all):
+            is_checked = st.checkbox(f"✔️ {item['name']}", value=True, key=f"chk_{item['name']}")
+            if is_checked:
+                item_with_color = item.copy()
+                item_with_color["color_idx"] = i  # 체크 해제해도 색상이 유지되도록 고유 인덱스 저장
+                active_plot_items.append(item_with_color)
+        
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
 
     df_summary = pd.DataFrame()
     copy_text_js = ""
 
-    if len(plot_items) > 0:
+    if len(active_plot_items) > 0:
         fig = go.Figure()
         table_data = {"Name": [], "Peaks(nm)": [], "Abs(AU)": []}
         target_max_abs = first_match_max_abs = match_name_for_conc = None
 
-        for i, item in enumerate(plot_items):
+        for idx, item in enumerate(active_plot_items):
             name, series = item["name"], item["data"]
-            color = color_palette[i % len(color_palette)] 
+            color = color_palette[item["color_idx"] % len(color_palette)] 
+            
             fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, line=dict(color=color, width=1.5)))
             
             mask = (series.index >= min_wave) & (series.index <= max_wave)
@@ -309,30 +329,27 @@ if app_mode == "SPEC":
                 fig.add_trace(go.Scatter(x=[p_wave], y=[p_abs], mode='markers+text', marker=dict(color=color, size=8), text=[f"{p_wave:.0f}nm<br>({p_abs:.2f})"], textposition="top right", textfont=dict(color=color, size=11), showlegend=False, hoverinfo='skip'))
                 table_data["Name"].append(name); table_data["Peaks(nm)"].append(f"{p_wave:.1f}"); table_data["Abs(AU)"].append(f"{p_abs:.5f}")
                 
-                if i == 0 and item["is_target"]: target_max_abs = p_abs
-                elif i == 1 and target_max_abs is not None:
+                if item.get("is_target"): target_max_abs = p_abs
+                elif target_max_abs is not None and first_match_max_abs is None:
                     first_match_max_abs = p_abs; match_name_for_conc = name
 
         fig.update_layout(title=f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)", xaxis_title="Wavelength (nm)", yaxis_title="Absorbance (AU)", hovermode="x unified", margin=dict(l=40, r=40, t=60, b=40), legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99), plot_bgcolor='white', paper_bgcolor='white', dragmode="zoom", xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]), yaxis=dict(showgrid=True, gridcolor='#eaeaea'))
         
         plain_summary_text = ""
-        if target_max_abs is not None and first_match_max_abs is not None and len(plot_items) == 2:
+        if target_max_abs is not None and first_match_max_abs is not None and len(active_plot_items) >= 2:
             conc_diff_pct = ((target_max_abs - first_match_max_abs) / first_match_max_abs) * 100
             direction_str = "진합니다" if conc_diff_pct > 0 else "연합니다"
             plain_summary_text = f"농도 분석: {target_name}이 {match_name_for_conc} 대비 약 {abs(conc_diff_pct):.1f}% 더 {direction_str}."
 
-        col_left, col_right = st.columns([1, 2])
         with col_right:
             st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
             
         with col_left:
-            st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
             if plain_summary_text: 
                 st.write(f"- **{plain_summary_text}**")
             
-            # 🌟 [크기/레이아웃 변경] JSON L,a,b 분석 요약 🌟
             html_lab_part = ""
-            for item in plot_items:
+            for item in active_plot_items:
                 is_unknown = item["name"] in uploaded_spectra
                 lab_res = get_lab_rgb_for_dye(item["name"])
                 
@@ -353,7 +370,9 @@ if app_mode == "SPEC":
             if table_data["Name"]:
                 df_summary = pd.DataFrame(table_data)
                 df_summary.index = range(1, len(df_summary) + 1)
-                def color_rows(row): return [f'color: {color_palette[(row.name - 1) % len(color_palette)]}; font-weight: bold;'] * len(row)
+                def color_rows(row): 
+                    original_idx = active_plot_items[row.name - 1]["color_idx"]
+                    return [f'color: {color_palette[original_idx % len(color_palette)]}; font-weight: bold;'] * len(row)
                 st.table(df_summary.style.apply(color_rows, axis=1))
 
                 html_content = f"<h3>[실무 분석 요약]</h3>"
@@ -362,8 +381,8 @@ if app_mode == "SPEC":
                 
                 html_content += "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif;'>"
                 html_content += "<tr style='background-color: #f2f2f2;'><th>Name</th><th>Peaks (nm)</th><th>Abs (AU)</th></tr>"
-                for idx in range(len(table_data["Name"])):
-                    html_content += f"<tr><td style='padding: 8px;'>{table_data['Name'][idx]}</td><td style='padding: 8px;'>{table_data['Peaks(nm)'][idx]}</td><td style='padding: 8px;'>{table_data['Abs(AU)'][idx]}</td></tr>"
+                for idx_t in range(len(table_data["Name"])):
+                    html_content += f"<tr><td style='padding: 8px;'>{table_data['Name'][idx_t]}</td><td style='padding: 8px;'>{table_data['Peaks(nm)'][idx_t]}</td><td style='padding: 8px;'>{table_data['Abs(AU)'][idx_t]}</td></tr>"
                 html_content += "</table>"
                 js_html_content = html_content.replace('\n', ' ').replace('"', '\\"').replace("'", "\\'")
                 
