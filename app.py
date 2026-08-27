@@ -254,8 +254,10 @@ if app_mode == "SPEC":
     if target_series_sd is not None and not target_series_sd.empty:
         plot_items.append({"name": target_name, "data": target_series_sd, "is_target": True})
         common_wavelengths = df.columns.intersection(target_series_sd.index)
-        errors = ((df[common_wavelengths] - target_series_sd[common_wavelengths]) ** 2).mean(axis=1)
-        best_match = errors.sort_values().head(3).index[0]
+        # 형태(패턴)의 유사도를 계산 (1에 가까울수록 형태가 완벽히 동일함을 의미)
+correlations = df[common_wavelengths].T.corrwith(target_series_sd[common_wavelengths])
+# 내림차순 정렬하여 가장 상관계수가 높은(모양이 비슷한) 염료 선택
+best_match = correlations.sort_values(ascending=False).head(3).index[0]
         st.success(f"자동 매칭 탐색 (가장 유사한 DB 염료: **{best_match}**)", icon=":material/check_circle:")
 
     dyes_to_plot = selected_dyes.copy()
