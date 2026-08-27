@@ -166,7 +166,10 @@ if uploaded_files:
     headers = { b'\x28\x00\x41\x00\x55\x00\x29\x00': 17, b'\x28\x41\x55\x29\x00': 5 }
     for file in uploaded_files:
         file_bytes = file.getvalue()
-        filename = file.name
+        
+        # 👇 추가된 부분: 파일 이름에서 .sd 또는 .SD 글자 깔끔하게 지우기
+        clean_name = file.name.replace(".sd", "").replace(".SD", "")
+        
         for h, spacing in headers.items():
             total_matches = file_bytes.count(h)
             start_search = count = 0
@@ -182,7 +185,9 @@ if uploaded_files:
                         series = pd.Series(absorbances, index=wavelengths)
                         series.index.name = "Wavelength"
                         count += 1
-                        spec_name = f"{filename} ({count})" if total_matches > 1 else filename
+                        
+                        # 👇 filename 대신 깔끔해진 clean_name 사용
+                        spec_name = f"{clean_name} ({count})" if total_matches > 1 else clean_name
                         base_name, dedup = spec_name, 1
                         while spec_name in uploaded_spectra:
                             spec_name = f"{base_name} ({dedup})"; dedup += 1
