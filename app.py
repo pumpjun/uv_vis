@@ -10,8 +10,12 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 
 # --- 페이지 기본 설정 ---
-st.set_page_config(page_title="Ohyoung UV-Vis", layout="wide", initial_sidebar_state="expanded")
-
+st.set_page_config(
+    page_title="Ohyoung UV-Vis", 
+    page_icon="logo.png",  # <- 이 부분이 추가되었습니다.
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 # ==========================================
 # 🌟 앱 모드 상태 관리 및 상단 버튼 🌟
 # ==========================================
