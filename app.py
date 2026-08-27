@@ -259,14 +259,27 @@ if app_mode == "SPEC":
         plot_items.append({"name": target_name, "data": target_series_sd, "is_target": True})
         common_wavelengths = df.columns.intersection(target_series_sd.index)
         
-        # ⬇️ 앞의 띄어쓰기 간격이 모두 똑같아야 합니다 ⬇️
+        # 1. 형태(물질) 기준 1위 (상관계수)
         correlations = df[common_wavelengths].T.corrwith(target_series_sd[common_wavelengths])
-        best_match = correlations.sort_values(ascending=False).head(3).index[0]
-        st.success(f"자동 매칭 탐색 (가장 유사한 DB 염료: **{best_match}**)", icon=":material/check_circle:")
+        best_shape = correlations.sort_values(ascending=False).index[0]
+        
+        # 2. 높이+농도(절대값) 기준 1위 (예전 방식: 오차 최소)
+        errors = ((df[common_wavelengths] - target_series_sd[common_wavelengths]) ** 2).mean(axis=1)
+        best_abs = errors.sort_values().index[0]
+        
+        # 결과 메시지 출력 및 리스트화
+        best_matches = []
+        if best_shape == best_abs:
+            st.success(f"✨ 자동 매칭 완벽 일치! (추천 DB 염료: **{best_shape}**)", icon=":material/check_circle:")
+            best_matches = [best_shape]
+        else:
+            st.info(f"🔍 **물질(파장) 형태 매칭 1위:** {best_shape} / 💧 **농도(절대값) 매칭 1위:** {best_abs}", icon=":material/search:")
+            best_matches = [best_shape, best_abs]
 
     dyes_to_plot = selected_dyes.copy()
-    if target_series_sd is not None and len(dyes_to_plot) == 0 and best_match is not None:
-        dyes_to_plot = [best_match]
+    # 사용자가 DB 염료를 직접 선택하지 않았다면, 자동 매칭된 1~2개 염료를 그래프에 띄움
+    if target_series_sd is not None and len(dyes_to_plot) == 0 and 'best_matches' in locals():
+        dyes_to_plot = best_matches
 
     for dye in dyes_to_plot:
         plot_items.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
