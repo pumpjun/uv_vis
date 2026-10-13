@@ -15,7 +15,7 @@ from sklearn.ensemble import RandomForestRegressor
 # --- 페이지 기본 설정 ---
 st.set_page_config(
     page_title="Ohyoung UV-Vis",
-    page_icon="logo.png",
+    page_icon="logo.png" if os.path.exists("logo.png") else "🧪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -32,30 +32,41 @@ MIX_GOOD_R2 = 0.99        # 혼합 피팅 '잘 맞음' 기준
 MIX_OK_R2 = 0.95          # 혼합 피팅 '대체로 맞음' 기준
 
 # ==========================================
-# 🌟 앱 모드 상태 관리 및 상단 버튼 🌟
+# 🎨 디자인 토큰
+# ==========================================
+NAVY = "#1b489d"
+NAVY_DARK = "#123373"
+NAVY_SOFT = "#e9eef8"
+INK = "#1d2433"
+MUTED = "#6b7487"
+LINE = "#e3e7ef"
+OK, OK_BG = "#167a4a", "#e6f4ec"
+WARN, WARN_BG = "#a65f00", "#fff4e0"
+BAD, BAD_BG = "#b42318", "#fdecea"
+# 첫 번째(타겟)는 시그니처 네이비, 나머지는 서로 잘 구분되는 색
+SERIES_COLORS = [NAVY, "#e4572e", "#17a398", "#f2a541", "#8e5ccf", "#d6457a", "#5b8c2a", "#7a7f8c"]
+
+# ==========================================
+# 상태
 # ==========================================
 if "app_mode" not in st.session_state:
     st.session_state.app_mode = "SPEC"
+if "dye_type" not in st.session_state:
+    st.session_state.dye_type = "Reactive"
+
 def set_app_mode(mode):
     st.session_state.app_mode = mode
+
+def change_dye_type(dye_name):
+    st.session_state.dye_type = dye_name
 
 def open_mix_with(cands):
     """매칭 후보들을 DB 선택 목록에 넣고 혼합 비율 예측 모드로 전환"""
     st.session_state[f"ms_db_{st.session_state.dye_type}"] = list(cands)[:6]
     st.session_state.app_mode = "MIX"
 
-app_mode = st.session_state.app_mode
-
-col_m1, col_m2 = st.columns(2)
-with col_m1:
-    st.button("스펙트럼 비교", icon=":material/bar_chart:", use_container_width=True, type="primary" if app_mode == "SPEC" else "secondary", on_click=set_app_mode, args=("SPEC",))
-with col_m2:
-    st.button("혼합 비율 예측", icon=":material/science:", use_container_width=True, type="primary" if app_mode == "MIX" else "secondary", on_click=set_app_mode, args=("MIX",))
-
-st.markdown("<div style='height: 40px; display: block;'></div>", unsafe_allow_html=True)
-
 # ==========================================
-# 🌟 상단 고정 메뉴바 및 UI 커스텀 CSS 🌟
+# 🌟 전역 스타일
 # ==========================================
 try:
     with open("logo.png", "rb") as image_file:
@@ -63,29 +74,186 @@ try:
 except Exception:
     logo_base64 = ""
 
-st.markdown(f'''
+# 상단 바 로고: 네이비 바탕에 맞춘 logo1.png (없으면 logo.png) — Spectra50 · SpectraMatch와 같은 방식
+try:
+    with open("logo1.png", "rb") as image_file:
+        header_logo_base64 = base64.b64encode(image_file.read()).decode()
+except Exception:
+    header_logo_base64 = logo_base64
+
+CSS = """
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
-    [data-testid="stHeader"] {{ display: none !important; }}
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarHeader"] {{ display: none !important; height: 0 !important; margin: 0 !important; }}
-    .fixed-header {{ position: fixed; top: 0; left: 0; width: 100vw; height: 60px; background-color: var(--background-color, #ffffff); box-shadow: 0px 2px 10px rgba(0,0,0,0.1); z-index: 999998; display: flex; align-items: center; padding-left: 20px; border-bottom: 1px solid rgba(128,128,128,0.2); }}
-    .fixed-header img {{ width: 45px; margin-right: 12px; }}
-    .fixed-header h2 {{ margin: 0; padding: 0; font-size: 24px; font-weight: 700; color: var(--text-color); margin-right: 30px; }}
-    [data-testid="stMainBlockContainer"] > div > div:first-child {{ position: fixed !important; top: 11px !important; left: 290px !important; width: 380px !important; z-index: 999999 !important; background-color: transparent !important; }}
-    .block-container {{ padding-top: 90px !important; }}
-    [data-testid="stSidebar"] {{ padding-top: 60px !important; }}
-    [data-testid="stSidebarUserContent"] {{ padding-top: 10px !important; padding-bottom: 10px !important; }}
-    [data-testid="stSidebarUserContent"] > div {{ gap: 0.5rem !important; }}
-    div.element-container {{ margin-bottom: 0 !important; }}
-    .stTextInput>div, .stMultiSelect>div, .stFileUploader>div, .stSelectbox>div {{ padding-bottom: 0 !important; }}
-    .material-symbols-outlined {{ line-height: 1 !important; vertical-align: middle; }}
-    [data-testid="stAppViewContainer"] {{ overflow-y: scroll !important; }}
-</style>
-<div class="fixed-header"><img src="data:image/png;base64,{logo_base64}" onerror="this.style.display='none'"><h2>Ohyoung UV-Vis</h2></div>
-''', unsafe_allow_html=True)
+:root { --navy: NAVY_; --navy-dark: NAVYD_; --navy-soft: NAVYS_; --ink: INK_; --muted: MUTED_; --line: LINE_; }
+html, body, [class*="css"], .stApp, button, input, textarea, select {
+    font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif !important;
+}
+.material-symbols-outlined { font-family: 'Material Symbols Rounded', 'Material Symbols Outlined' !important; font-weight: normal; font-style: normal; letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; line-height: 1; vertical-align: middle; }
+.stApp { background: #f5f7fb; }
+[data-testid="stHeader"] { display: none !important; }
+[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarHeader"] { display: none !important; }
+.block-container { padding-top: 0 !important; padding-bottom: 3rem !important; max-width: 1500px; }
+[data-testid="stAppViewContainer"] { overflow-y: scroll !important; }
 
+/* ---------- 상단 바: Spectra50 · SpectraMatch와 같은 네이비 고정 바 ---------- */
+.st-key-topbar {
+    position: fixed !important; top: 0; left: 0; right: 0; height: 60px; z-index: 999990;
+    background: linear-gradient(100deg, var(--navy) 0%, #2557b8 100%);
+    margin: 0 !important; padding: 0 20px !important; border-radius: 0;
+    box-shadow: 0 4px 18px rgba(19,55,119,.28);
+    display: flex; flex-direction: column; justify-content: center;
+}
+.st-key-topbar [data-testid="stHorizontalBlock"] { align-items: center; gap: 6px !important; }
+.brand { display: flex; align-items: center; gap: 12px; color: #fff; white-space: nowrap; transform: translateY(-8px); }
+.brand img { height: 38px; width: auto; max-width: 160px; object-fit: contain; }
+.brand .mark { width: 36px; height: 36px; border-radius: 9px; background: rgba(255,255,255,.15);
+               display: flex; align-items: center; justify-content: center; }
+.brand .t1 { font-size: 21px; font-weight: 800; letter-spacing: -.3px; line-height: 1; color: #fff; }
+.brand .hdr-mode { font-size: 12.5px; font-weight: 600; color: #fff; background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.22); padding: 3px 10px; border-radius: 999px; }
+
+/* 상단 바 버튼: 투명 탭, 선택된 것만 흰색 */
+.st-key-topbar button {
+    background: transparent !important; color: rgba(255,255,255,.80) !important;
+    border: 1px solid transparent !important; border-radius: 9px !important;
+    font-weight: 600 !important; height: 36px !important; min-height: 36px !important; box-shadow: none !important;
+}
+.st-key-topbar button p { font-size: 13.5px !important; }
+.st-key-topbar button:hover { background: rgba(255,255,255,.12) !important; color: #fff !important; }
+.st-key-topbar button[kind="primary"], .st-key-topbar button[data-testid="stBaseButton-primary"] {
+    background: #fff !important; color: var(--navy) !important; font-weight: 700 !important; box-shadow: 0 2px 6px rgba(0,0,0,.12) !important;
+}
+/* 사이드바 맨 위 DB 전환: 회색 바탕 위 선택된 쪽만 네이비 */
+.st-key-dbswitch { background: #eef2f9; border: 1px solid var(--line); border-radius: 12px; padding: 4px !important; margin-bottom: 14px; }
+.st-key-dbswitch [data-testid="stHorizontalBlock"] { gap: 4px !important; }
+.st-key-dbswitch button { height: 34px !important; min-height: 34px !important; border-radius: 9px !important; font-weight: 700 !important; box-shadow: none !important; }
+.st-key-dbswitch button[kind="secondary"], .st-key-dbswitch button[data-testid="stBaseButton-secondary"] { background: transparent !important; border-color: transparent !important; color: var(--muted) !important; }
+.st-key-dbswitch button[kind="secondary"]:hover { color: var(--navy) !important; background: #fff !important; }
+.st-key-dbswitch button[kind="primary"], .st-key-dbswitch button[data-testid="stBaseButton-primary"] { background: var(--navy) !important; border-color: var(--navy) !important; color: #fff !important; }
+.block-container { padding-top: 84px !important; }
+
+/* ---------- 사이드바 ---------- */
+[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid var(--line); }
+[data-testid="stSidebar"] { z-index: 999980; }
+[data-testid="stSidebarUserContent"] { padding-top: 80px !important; }
+.step { display: flex; align-items: center; gap: 9px; margin: 6px 0 8px 0; font-weight: 700; color: var(--ink); font-size: 15px; }
+.step .n { width: 22px; height: 22px; border-radius: 50%; background: var(--navy); color: #fff;
+           font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.step .opt { font-weight: 500; color: var(--muted); font-size: 12px; }
+.side-foot { color: var(--muted); font-size: 11.5px; margin-top: 18px; }
+
+/* ---------- 카드 · 공통 ---------- */
+[data-testid="stVerticalBlockBorderWrapper"]:has(> div > [data-testid="stVerticalBlock"]) { border-radius: 14px; }
+div[data-testid="stVerticalBlockBorderWrapper"][class*="st-key-card"],
+[class*="st-key-card"] {
+    background: #fff; border: 1px solid var(--line) !important; border-radius: 14px;
+    padding: 18px 20px !important; box-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+.sec { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .3px; margin: 0 0 10px 0;
+       display: flex; align-items: center; gap: 6px; }
+.sec .material-symbols-outlined { font-size: 18px; color: var(--navy); }
+.page-title { font-size: 24px; font-weight: 800; color: var(--ink); letter-spacing: -.5px; margin: 0; }
+.page-sub { color: var(--muted); font-size: 13.5px; margin: 2px 0 16px 0; }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px;
+        font-size: 12.5px; font-weight: 700; }
+.pill .material-symbols-outlined { font-size: 16px; }
+
+/* 매칭 결과 히어로 */
+.hero { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.hero .sw { width: 64px; height: 64px; border-radius: 14px; border: 1px solid rgba(0,0,0,.08); flex: none; }
+.hero .lbl { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.hero .name { font-size: 26px; font-weight: 800; color: var(--ink); letter-spacing: -.5px; line-height: 1.2; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+.kpi { background: #f7f9fc; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.kpi .k { font-size: 12px; color: var(--muted); font-weight: 600; }
+.kpi .v { font-size: 20px; font-weight: 800; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 12px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+.kpi.accent { background: var(--navy); border-color: var(--navy); }
+.kpi.accent .k { color: rgba(255,255,255,.75); } .kpi.accent .v { color: #fff; }
+.issues { margin: 14px 0 0 0; padding: 12px 14px 12px 30px; border-radius: 10px; background: WARNBG_; color: #6b3d00; font-size: 13.5px; }
+.issues li { margin: 2px 0; }
+
+/* 색상 칩 */
+.chip { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.chip:last-child { border-bottom: none; }
+.chip .sw { width: 46px; height: 46px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); flex: none; }
+.chip .nm { font-weight: 700; color: var(--ink); font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip .lab { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; }
+.tag.db { background: #eef0f4; color: #4a5263; }
+.tag.ai { background: var(--navy-soft); color: var(--navy); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+
+/* 농도 콜아웃 */
+.callout { background: var(--navy-soft); border-radius: 12px; padding: 14px 16px; color: var(--ink); }
+.callout .big { font-size: 22px; font-weight: 800; color: var(--navy); }
+.callout .s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+/* 빈 화면 안내 */
+.empty { text-align: center; padding: 56px 20px 40px; }
+.empty .ic { width: 64px; height: 64px; border-radius: 18px; background: var(--navy-soft); color: var(--navy);
+             display: inline-flex; align-items: center; justify-content: center; }
+.empty .ic .material-symbols-outlined { font-size: 34px; }
+.empty h3 { margin: 14px 0 4px; color: var(--ink); font-weight: 800; }
+.empty p { color: var(--muted); margin: 0; }
+.steps3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; max-width: 760px; margin: 26px auto 0; text-align: left; }
+.steps3 div { background: #f7f9fc; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 13.5px; color: var(--ink); }
+.steps3 b { color: var(--navy); display: block; margin-bottom: 4px; }
+
+/* 비율 바 */
+.ratio-row { display: grid; grid-template-columns: 1fr 64px; gap: 10px; align-items: center; margin: 9px 0; }
+.ratio-row .nm { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.ratio-row .bar { height: 10px; background: #edf0f5; border-radius: 99px; overflow: hidden; }
+.ratio-row .bar > i { display: block; height: 100%; background: var(--navy); border-radius: 99px; }
+.ratio-row .pct { text-align: right; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* 위젯 미세조정 */
+[data-testid="stExpander"] details { border-radius: 12px !important; border-color: var(--line) !important; background: #fff; }
+[data-testid="stFileUploaderDropzone"] { background: #f7f9fc; border: 1.5px dashed #c6cfdf; border-radius: 12px; }
+</style>
+"""
+for k, v in {"NAVY_": NAVY, "NAVYD_": NAVY_DARK, "NAVYS_": NAVY_SOFT, "INK_": INK, "MUTED_": MUTED,
+             "LINE_": LINE, "WARNBG_": WARN_BG}.items():
+    CSS = CSS.replace(k, v)
+import re as _re
+CSS = _re.sub(r"/\*.*?\*/", "", CSS, flags=_re.S)            # 주석 제거
+CSS = "\n".join(l for l in CSS.splitlines() if l.strip())    # 빈 줄이 있으면 마크다운이 CSS를 글자로 출력함
+st.markdown(CSS, unsafe_allow_html=True)
+
+
+def icon(name, size=None, color=None):
+    style = ""
+    if size: style += f"font-size:{size}px;"
+    if color: style += f"color:{color};"
+    return f"<span class='material-symbols-outlined' style='{style}'>{name}</span>"
+
+def sec(title, ic):
+    st.markdown(f"<div class='sec'>{icon(ic)}{title}</div>", unsafe_allow_html=True)
+
+def pill(text, kind="ok", ic=None):
+    fg, bg = {"ok": (OK, OK_BG), "warn": (WARN, WARN_BG), "bad": (BAD, BAD_BG), "info": (NAVY, NAVY_SOFT)}[kind]
+    return f"<span class='pill' style='color:{fg};background:{bg};'>{icon(ic) if ic else ''}{text}</span>"
+
+
+# ==========================================
+# 🧭 상단 바 (브랜드 · 모드 · DB)
+# ==========================================
+app_mode = st.session_state.app_mode
+with st.container(key="topbar"):
+    c_brand, c_nav, c_gap = st.columns([1.5, 1.33, 3.47], vertical_alignment="center")
+    with c_brand:
+        logo_html = (f"<img src='data:image/png;base64,{header_logo_base64}'>" if header_logo_base64
+                     else f"<div class='mark'>{icon('science', 22, '#fff')}</div>")
+        st.markdown(f"<div class='brand'>{logo_html}<div class='t1'>Ohyoung UV-Vis</div>"
+                    f"<span class='hdr-mode'>{st.session_state.dye_type}</span></div>", unsafe_allow_html=True)
+    with c_nav:
+        n1, n2 = st.columns(2)
+        n1.button("스펙트럼 비교", icon=":material/show_chart:", use_container_width=True,
+                  type="primary" if app_mode == "SPEC" else "secondary", on_click=set_app_mode, args=("SPEC",), key="nav_spec")
+        n2.button("혼합 비율 예측", icon=":material/science:", use_container_width=True,
+                  type="primary" if app_mode == "MIX" else "secondary", on_click=set_app_mode, args=("MIX",), key="nav_mix")
 
 # ==========================================
 # 🎨 색상 변환 및 AI 예측 내장 로직
@@ -274,26 +442,36 @@ def load_data(file_name):
     df.columns = df.columns.astype(float)
     return df
 
-if "dye_type" not in st.session_state: st.session_state.dye_type = "Reactive"
-def change_dye_type(dye_name): st.session_state.dye_type = dye_name
 
 # ==========================================
-# 왼쪽 사이드바 (조작부)
+# 데이터 로드
 # ==========================================
-st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>folder_open</span>데이터베이스 선택</h3>", unsafe_allow_html=True)
-col_d1, col_d2 = st.sidebar.columns(2)
-with col_d1: st.button("Reactive", use_container_width=True, type="primary" if st.session_state.dye_type == "Reactive" else "secondary", on_click=change_dye_type, args=("Reactive",))
-with col_d2: st.button("Disperse", use_container_width=True, type="primary" if st.session_state.dye_type == "Disperse" else "secondary", on_click=change_dye_type, args=("Disperse",))
-
 db_file = "Final_UV_Data_R.csv" if st.session_state.dye_type == "Reactive" else "Final_UV_Data_D.csv"
 try:
     df = load_data(db_file)
     ai_model, dye_json_data, name_mapping = load_and_train_ai(df)
 except FileNotFoundError:
-    st.sidebar.error(f"오류: '{db_file}' 파일을 찾을 수 없습니다.", icon=":material/error:"); st.stop()
+    st.error(f"'{db_file}' 파일을 찾을 수 없습니다. app.py와 같은 폴더에 있는지 확인하세요.", icon=":material/error:")
+    st.stop()
 
-st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 10px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>upload_file</span>파일 업로드 (선택사항)</h3>", unsafe_allow_html=True)
-uploaded_files = st.sidebar.file_uploader("SD 파일을 여러 개 올릴 수 있습니다.", type=['sd'], accept_multiple_files=True)
+
+# ==========================================
+# 왼쪽 사이드바: ① 측정 파일 → ② 비교 염료 → 고급 설정
+# ==========================================
+def step(n, title, opt=""):
+    o = f"<span class='opt'>{opt}</span>" if opt else ""
+    st.sidebar.markdown(f"<div class='step'><span class='n'>{n}</span>{title}{o}</div>", unsafe_allow_html=True)
+
+# 염료 DB 전환 (사이드바 맨 위)
+with st.sidebar.container(key="dbswitch"):
+    d1, d2 = st.columns(2, gap="small")
+    d1.button("Reactive", use_container_width=True, key="db_r",
+              type="primary" if st.session_state.dye_type == "Reactive" else "secondary", on_click=change_dye_type, args=("Reactive",))
+    d2.button("Disperse", use_container_width=True, key="db_d",
+              type="primary" if st.session_state.dye_type == "Disperse" else "secondary", on_click=change_dye_type, args=("Disperse",))
+
+step(1, "측정 파일 올리기", "SD 파일")
+uploaded_files = st.sidebar.file_uploader("SD 파일", type=['sd'], accept_multiple_files=True, label_visibility="collapsed")
 
 uploaded_spectra = {}
 if uploaded_files:
@@ -330,52 +508,45 @@ if uploaded_files:
 combined_df = pd.concat([df, pd.DataFrame(uploaded_spectra).T]) if uploaded_spectra else df
 target_name = target_series_sd = None
 
-# ==========================================
-# 🎯 타겟 드롭다운 선택
-# ==========================================
 if uploaded_spectra:
-    st.sidebar.markdown("<div style='margin-top: 15px; margin-bottom: 5px; color: var(--primary-color, #2e7af5); font-weight: bold; display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:6px;'>my_location</span>타겟(기준) 스펙트럼 선택</div>", unsafe_allow_html=True)
-    target_name = st.sidebar.selectbox("타겟 선택", options=list(uploaded_spectra.keys()), label_visibility="collapsed")
+    target_name = st.sidebar.selectbox("타겟(분석할 시료)", options=list(uploaded_spectra.keys()))
     target_series_sd = uploaded_spectra[target_name]
 
-# ==========================================
-# 🎨 비교/구성 성분 선택
-# ==========================================
-st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 15px 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>palette</span>비교/구성 성분 선택</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 max_sel = 6
-selected_db_dyes = st.sidebar.multiselect(f"1. DB 염료에서 선택 (최대 {max_sel}개):", options=df.index.tolist(), max_selections=max_sel, key=f"ms_db_{st.session_state.dye_type}")
+step(2, "비교할 염료", f"최대 {max_sel}개 · 선택사항" if uploaded_spectra else f"최대 {max_sel}개")
+selected_db_dyes = st.sidebar.multiselect("DB 염료", options=df.index.tolist(), max_selections=max_sel,
+                                          key=f"ms_db_{st.session_state.dye_type}",
+                                          placeholder=f"{st.session_state.dye_type} DB에서 검색")
 
 selected_upload_dyes = []
 if uploaded_spectra:
     upload_choices = [k for k in uploaded_spectra.keys() if k != target_name]
     if upload_choices:
-        selected_upload_dyes = st.sidebar.multiselect(f"2. 업로드 데이터에서 추가 (최대 {max_sel}개):", options=upload_choices, max_selections=max_sel, key=f"ms_up_{st.session_state.dye_type}")
+        selected_upload_dyes = st.sidebar.multiselect("업로드한 다른 시료", options=upload_choices, max_selections=max_sel,
+                                                      key=f"ms_up_{st.session_state.dye_type}", placeholder="업로드 파일에서 추가")
 
 selected_dyes = (selected_db_dyes + selected_upload_dyes)[:max_sel]
+if uploaded_spectra and not selected_dyes and app_mode == "SPEC":
+    st.sidebar.caption("비워 두면 DB에서 가장 비슷한 염료를 자동으로 찾아 비교합니다.")
 
-# ==========================================
-# ⚙️ 스펙트럼 / 분석 설정
-# ==========================================
-st.sidebar.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-st.sidebar.markdown("<h3 style='display: flex; align-items: center; margin: 0 0 5px 0;'><span class='material-symbols-outlined' style='margin-right:8px;'>tune</span>스펙트럼 설정</h3>", unsafe_allow_html=True)
-
-st.sidebar.markdown("<div style='margin-bottom: 5px;'><b>매칭·혼합 분석 구간 (nm)</b></div>", unsafe_allow_html=True)
-col_f1, col_f2 = st.sidebar.columns(2)
-with col_f1: fit_min = st.number_input("분석 최소", value=380.0, step=10.0, format="%.0f")
-with col_f2: fit_max = st.number_input("분석 최대", value=780.0, step=10.0, format="%.0f")
+st.sidebar.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+with st.sidebar.expander("고급 설정", icon=":material/tune:"):
+    st.markdown("**매칭·혼합 분석 구간 (nm)**")
+    col_f1, col_f2 = st.columns(2)
+    fit_min = col_f1.number_input("시작", value=380.0, step=10.0, format="%.0f")
+    fit_max = col_f2.number_input("끝", value=780.0, step=10.0, format="%.0f")
+    use_baseline = st.toggle(f"베이스라인 보정", value=True, help=f"분석 구간 끝 {BASELINE_WIDTH:.0f} nm 평균을 0으로 맞춥니다.")
+    use_deriv = st.toggle("1차 미분으로 매칭", value=True, help="모양 비교를 미분 스펙트럼으로 합니다. 분산염료에 권장.")
+    st.markdown("**최대 피크 찾는 구간 (nm)**")
+    col1, col2 = st.columns(2)
+    min_wave = col1.number_input("최소", value=300.0, step=10.0, format="%.0f")
+    max_wave = col2.number_input("최대", value=800.0, step=10.0, format="%.0f")
 if fit_min >= fit_max:
     st.sidebar.warning("분석 구간이 올바르지 않아 380~780 nm를 사용합니다.", icon=":material/warning:")
     fit_min, fit_max = 380.0, 780.0
-use_baseline = st.sidebar.checkbox(f"베이스라인 보정 (구간 끝 {BASELINE_WIDTH:.0f} nm 평균 차감)", value=True)
-use_deriv = st.sidebar.checkbox("1차 미분 스펙트럼으로 매칭 (분산염료 권장)", value=True)
 
-st.sidebar.markdown("<div style='margin: 8px 0 5px 0;'><b>최대 피크 표시 구간 (nm)</b></div>", unsafe_allow_html=True)
-col1, col2 = st.sidebar.columns(2)
-with col1: min_wave = st.number_input("최소 파장", value=300.0, step=10.0, format="%.0f")
-with col2: max_wave = st.number_input("최대 파장", value=800.0, step=10.0, format="%.0f")
-
-st.sidebar.caption("Created by tskwon :material/science:")
-color_palette = ['black', 'red', 'blue', 'purple', 'green', 'orange', 'brown', 'pink']
+st.sidebar.markdown(f"<div class='side-foot'>DB: {st.session_state.dye_type} · {len(df)}종<br>Created by tskwon</div>", unsafe_allow_html=True)
 
 
 # ==========================================
@@ -400,40 +571,52 @@ def predict_unknown_lab(series_sd):
     p_L, p_a, p_b = ai_model.predict(x_input)[0]
     return round(p_L, 2), round(p_a, 2), round(p_b, 2), lab_to_rgb(p_L, p_a, p_b)
 
-def lab_chip_html(name, series, compact=False):
-    """색상 칩 HTML (DB 값 우선, 없으면 업로드 데이터에 한해 AI 예측). 표시할 게 없으면 빈 문자열"""
-    w, h, fs, small, mb = (80, 35, 13, 11, 12) if compact else (90, 40, 14, 12, 15)
-    safe_name = html_lib.escape(str(name))
+def get_color_info(name, series):
+    """(L, a, b, rgb, 출처) — DB 값 우선, 없으면 업로드 데이터에 한해 AI 예측"""
     lab = get_lab_rgb_for_dye(name)
     if lab:
-        L, a, b, rgb = lab
-        wrap = f"margin-bottom: {mb}px;"
-        tag = f"<span style='font-size: {small}px; font-weight: normal; color: #666;'>(DB 추출)</span>"
-    elif name in uploaded_spectra:
+        return (*lab, "DB")
+    if name in uploaded_spectra:
         ai = predict_unknown_lab(series)
-        if not ai: return ""
-        L, a, b, rgb = ai
-        wrap = f"margin-bottom: {mb}px; padding: {10 if compact else 12}px; background-color: #f0f7ff; border-left: {3 if compact else 4}px solid #2e7af5; border-radius: {4 if compact else 6}px;"
-        tag = f"<span style='font-size: {small}px; font-weight: bold; color: #2e7af5;'>(✨AI 예측)</span>"
-    else:
-        return ""
-    return (f"<div style='{wrap}'>"
-            f"<div style='width: {w}px; height: {h}px; background-color: {rgb}; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'></div>"
-            f"<div style='font-size: {fs}px; font-weight: bold;'>{safe_name} {tag}</div>"
-            f"<div style='font-size: {fs}px; color: #333; margin-top: 2px;'>L={L}, a={a}, b={b}</div></div>")
+        if ai:
+            return (*ai, "AI")
+    return None
+
+def lab_chip_html(name, series, dot_color=None):
+    """화면용 색상 칩"""
+    info = get_color_info(name, series)
+    if not info: return ""
+    L, a, b, rgb, src = info
+    tag = "<span class='tag ai'>AI 예측</span>" if src == "AI" else "<span class='tag db'>DB</span>"
+    dot = f"<span class='dot' style='background:{dot_color}'></span>" if dot_color else ""
+    return (f"<div class='chip'><div class='sw' style='background:{rgb}'></div><div>"
+            f"<div class='nm'>{dot}{html_lib.escape(str(name))}{tag}</div>"
+            f"<div class='lab'>L* {L} · a* {a} · b* {b}</div></div></div>")
+
+def lab_chip_copy_html(name, series):
+    """복사용 색상 칩 (메일·문서에 붙여넣기 좋게 인라인 스타일)"""
+    info = get_color_info(name, series)
+    if not info: return ""
+    L, a, b, rgb, src = info
+    tag = "AI 예측" if src == "AI" else "DB"
+    return (f"<table style='border-collapse:collapse;margin:4px 0;font-family:sans-serif;'><tr>"
+            f"<td style='width:60px;height:30px;background:{rgb};border:1px solid #ccc;'></td>"
+            f"<td style='padding:0 10px;font-size:13px;'><b>{html_lib.escape(str(name))}</b> ({tag})<br>"
+            f"L={L}, a={a}, b={b}</td></tr></table>")
 
 def html_table(headers, rows):
-    out = "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif;'>"
-    out += "<tr style='background-color: #f2f2f2;'>" + "".join(f"<th style='padding: 8px;'>{html_lib.escape(str(h))}</th>" for h in headers) + "</tr>"
+    out = "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif; font-size: 13px;'>"
+    out += f"<tr style='background-color: {NAVY}; color: #fff;'>" + "".join(f"<th style='padding: 7px 10px;'>{html_lib.escape(str(h))}</th>" for h in headers) + "</tr>"
     for r in rows:
-        out += "<tr>" + "".join(f"<td style='padding: 8px;'>{html_lib.escape(str(c))}</td>" for c in r) + "</tr>"
+        out += "<tr>" + "".join(f"<td style='padding: 7px 10px;'>{html_lib.escape(str(c))}</td>" for c in r) + "</tr>"
     return out + "</table>"
 
 def render_copy_button(html_content, label):
     payload = json.dumps(html_content)
     components.html(f"""
-    <button onclick="copyToClipboard(this)" style="width: 100%; background-color: var(--primary-color, #2b5ce6); color: white; border: none; padding: 10px 0; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.3s; margin-top: -10px;">
-        <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+    <button onclick="copyToClipboard(this)" style="width: 100%; background-color: {NAVY}; color: white; border: none; padding: 11px 0; border-radius: 10px; font-size: 14.5px; cursor: pointer; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.2s; font-family: 'Pretendard','Malgun Gothic',sans-serif;"
+        onmouseover="this.style.backgroundColor='{NAVY_DARK}'" onmouseout="this.style.backgroundColor='{NAVY}'">
+        <svg xmlns="http://www.w3.org/2000/svg" height="19" viewBox="0 -960 960 960" width="19" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
         <span>{label}</span>
     </button>
     <script>
@@ -447,180 +630,207 @@ def render_copy_button(html_content, label):
         range.selectNodeContents(tempDiv); selection.removeAllRanges(); selection.addRange(range);
         try {{
             document.execCommand('copy');
-            const iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="white"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
-            const originalHtml = button.innerHTML; const originalBg = button.style.backgroundColor;
+            const iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" height="19" viewBox="0 -960 960 960" width="19" fill="white"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
+            const originalHtml = button.innerHTML;
             button.innerHTML = iconSvg + '<span>복사 완료! (Ctrl+V)</span>';
-            button.style.backgroundColor = '#28a745';
-            setTimeout(() => {{ button.innerHTML = originalHtml; button.style.backgroundColor = originalBg; }}, 2500);
+            button.style.backgroundColor = '{OK}';
+            setTimeout(() => {{ button.innerHTML = originalHtml; button.style.backgroundColor = '{NAVY}'; }}, 2500);
         }} catch(e) {{}}
         document.body.removeChild(tempDiv); selection.removeAllRanges();
     }}
     </script>
-    """, height=50)
+    """, height=48)
 
-PLOT_LAYOUT = dict(hovermode="x unified", margin=dict(l=40, r=40, t=60, b=40), legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99), plot_bgcolor='white', paper_bgcolor='white', dragmode="zoom", xaxis_title="Wavelength (nm)", yaxis_title="Absorbance (AU)")
+def style_fig(fig, title=None, height=470, x_range=None):
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, color=INK), x=0.01) if title else None,
+        height=height, hovermode="x unified", dragmode="zoom",
+        margin=dict(l=10, r=10, t=44 if title else 16, b=10),
+        plot_bgcolor="white", paper_bgcolor="white",
+        font=dict(family="Pretendard, Malgun Gothic, sans-serif", color=INK, size=12),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
+        hoverlabel=dict(bgcolor="white", bordercolor=LINE, font_size=12),
+    )
+    fig.update_xaxes(title_text="Wavelength (nm)", showgrid=True, gridcolor="#eef1f6", zeroline=False,
+                     linecolor=LINE, ticks="outside", tickcolor=LINE, range=x_range)
+    fig.update_yaxes(title_text="Absorbance (AU)", showgrid=True, gridcolor="#eef1f6",
+                     zeroline=True, zerolinecolor="#d9dee8", linecolor=LINE)
+    return fig
+
+PLOT_CONFIG = {"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+
+def series_picker(names, key):
+    """그래프에 보일 시리즈 선택 (pills, 구버전이면 multiselect)"""
+    if hasattr(st, "pills"):
+        sel = st.pills("표시할 스펙트럼", names, selection_mode="multi", default=names, key=key, label_visibility="collapsed")
+    else:
+        sel = st.multiselect("표시할 스펙트럼", names, default=names, key=key, label_visibility="collapsed")
+    return sel or []
+
+def empty_state(ic, title, desc, steps):
+    cells = "".join(f"<div><b>{i}. {t}</b>{d}</div>" for i, (t, d) in enumerate(steps, 1))
+    st.markdown(f"<div class='empty'><div class='ic'>{icon(ic)}</div><h3>{title}</h3><p>{desc}</p>"
+                f"<div class='steps3'>{cells}</div></div>", unsafe_allow_html=True)
 
 
 # ==========================================
-# 모드 1: 스펙트럼 비교 분석
+# 모드 1: 스펙트럼 비교
 # ==========================================
 if app_mode == "SPEC":
-    st.markdown("<h2 style='margin-top: 15px; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>bar_chart</span>스펙트럼 일반 비교 분석</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='page-title'>스펙트럼 비교</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='page-sub'>측정한 시료가 어떤 염료와 가장 비슷한지 찾고, 농도와 색상을 비교합니다 · 분석 구간 {fit_min:.0f}–{fit_max:.0f} nm</div>", unsafe_allow_html=True)
 
     plot_items_all = []
     best_matches = []
     match_res = None
     match_issues = []
+    gap = np.nan
 
     if target_series_sd is not None and not target_series_sd.empty:
         plot_items_all.append({"name": target_name, "data": target_series_sd, "is_target": True})
         match_res = rank_matches(target_series_sd, df, fit_min, fit_max, use_baseline, use_deriv)
-
         if match_res is None:
-            st.warning("분석 구간에서 DB와 겹치는 파장이 부족합니다. 사이드바의 분석 구간을 확인하세요.", icon=":material/warning:")
+            st.warning("분석 구간에서 DB와 겹치는 파장이 부족합니다. 고급 설정의 분석 구간을 확인하세요.", icon=":material/warning:")
         else:
             match_issues, gap = judge_match(match_res)
-            top = match_res.iloc[0]
-            mode_label = "미분 스펙트럼" if use_deriv else "원 스펙트럼"
-            gap_txt = f"{gap:.4f}" if np.isfinite(gap) else "-"
-            if not match_issues:
-                st.success(f"추천 DB 염료: **{top['염료']}** · 형태 점수 {top['형태 점수']:.4f} · 2위와 차이 {gap_txt}  ({mode_label}, {fit_min:.0f}–{fit_max:.0f} nm)", icon=":material/check_circle:")
-                best_matches = [top["염료"]]
-            else:
-                issue_md = "\n".join(f"- {s}" for s in match_issues)
-                st.warning(f"**1위: {top['염료']}** (형태 점수 {top['형태 점수']:.4f}) — 결과를 그대로 믿기 어렵습니다.\n{issue_md}", icon=":material/warning:")
-                best_matches = match_res.head(2)["염료"].tolist()
-
-            with st.expander("매칭 후보 상위 5개", expanded=bool(match_issues)):
-                top5 = match_res.head(5)
-                st.dataframe(
-                    top5.style.format({"형태 점수": "{:.4f}", "Δλmax(nm)": "{:+.0f}", "타겟 농도(%)": "{:.0f}%", "배율 적합 R²": "{:.3f}"}, na_rep="-"),
-                    use_container_width=True,
-                )
-                st.caption("형태 점수: 분석 구간 스펙트럼 모양의 상관계수(1에 가까울수록 유사) · Δλmax: 기준 λmax − 타겟 λmax · "
-                           "타겟 농도: 기준을 100%로 볼 때 타겟의 상대 농도 · 배율 적합 R²: 농도만 맞췄을 때 겹치는 정도")
-
-                if match_issues and len(match_res) >= 2:
-                    cand_names = top5["염료"].tolist()
-                    mix_fit = nnls_fit(target_series_sd, df.loc[cand_names], fit_min, fit_max, use_baseline)
-                    if mix_fit is not None:
-                        single_r2 = top["배율 적합 R²"]
-                        total_c = mix_fit["coeffs"].sum()
-                        shares = [(n, c / total_c * 100) for n, c in zip(cand_names, mix_fit["coeffs"]) if total_c > 0 and c / total_c > 0.05]
-                        shares.sort(key=lambda x: -x[1])
-                        st.markdown(f"**혼합 검토** — 상위 {len(cand_names)}개 후보로 혼합 피팅 시 R² = **{mix_fit['r2']:.3f}** (1위 단독 {single_r2:.3f})")
-                        if shares:
-                            st.markdown("주요 성분: " + ", ".join(f"{n} ({p:.0f}%)" for n, p in shares))
-                        if len(shares) >= 2 and np.isfinite(single_r2) and mix_fit["r2"] - single_r2 >= 0.02:
-                            st.info("여러 성분을 섞었을 때 훨씬 잘 맞습니다. 혼합 제품일 가능성이 있습니다.", icon=":material/science:")
-                        st.button("이 후보들로 혼합 비율 예측 열기", icon=":material/science:", on_click=open_mix_with, args=(cand_names,))
+            best_matches = [match_res.iloc[0]["염료"]] if not match_issues else match_res.head(2)["염료"].tolist()
 
     dyes_to_plot = selected_dyes.copy()
     if target_series_sd is not None and len(dyes_to_plot) == 0 and len(best_matches) > 0:
         dyes_to_plot = best_matches
-
     added_names = [item["name"] for item in plot_items_all]
     for dye in dyes_to_plot:
         if dye not in added_names:
             plot_items_all.append({"name": dye, "data": combined_df.loc[dye], "is_target": False})
             added_names.append(dye)
+    for i, item in enumerate(plot_items_all):
+        item["color"] = SERIES_COLORS[i % len(SERIES_COLORS)]
 
-    col_left, col_right = st.columns([1, 2])
+    if not plot_items_all:
+        empty_state("show_chart", "분석할 스펙트럼을 올려 주세요",
+                    "왼쪽에서 SD 파일을 올리거나, DB 염료만 골라 비교할 수도 있습니다.",
+                    [("SD 파일 올리기", "측정한 시료 파일을 끌어다 놓으세요."),
+                     ("자동 매칭 확인", "DB에서 가장 비슷한 염료와 농도 차이를 보여줍니다."),
+                     ("결과 복사", "표와 요약을 메일·보고서에 바로 붙여넣으세요.")])
+        st.stop()
 
-    active_plot_items = []
-    with col_left:
-        st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>checklist</span>그래프 표시 선택</h3>", unsafe_allow_html=True)
-        for i, item in enumerate(plot_items_all):
-            is_checked = st.checkbox(f"✔️ {item['name']}", value=True, key=f"chk_{item['name']}")
-            if is_checked:
-                item_with_color = item.copy()
-                item_with_color["color_idx"] = i
-                active_plot_items.append(item_with_color)
+    # ---------- ① 매칭 결과 카드 ----------
+    if match_res is not None:
+        top = match_res.iloc[0]
+        top_info = get_color_info(top["염료"], df.loc[top["염료"]])
+        sw = f"<div class='sw' style='background:{top_info[3]}'></div>" if top_info else ""
+        if not match_issues:
+            status = pill("신뢰할 수 있는 일치", "ok", "check_circle")
+        elif top["형태 점수"] < MATCH_MIN_SCORE:
+            status = pill("일치하는 염료 없음 / 혼합 의심", "bad", "error")
+        else:
+            status = pill("확인 필요", "warn", "warning")
+        with st.container(key="card_match"):
+            st.markdown(
+                f"<div class='sec'>{icon('target')}DB 자동 매칭 · {'미분' if use_deriv else '원'} 스펙트럼</div>"
+                f"<div class='hero'>{sw}<div><div class='lbl'>{html_lib.escape(str(target_name))} 와(과) 가장 비슷한 염료</div>"
+                f"<div class='name'>{html_lib.escape(str(top['염료']))}</div><div style='margin-top:6px'>{status}</div></div></div>",
+                unsafe_allow_html=True)
+        st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='display: flex; align-items: center;'><span class='material-symbols-outlined' style='margin-right:8px;'>lightbulb</span>실무 분석 요약</h3>", unsafe_allow_html=True)
+    # ---------- ② 그래프 + 요약 ----------
+    col_chart, col_side = st.columns([2.3, 1], gap="medium")
 
-    if len(active_plot_items) > 0:
-        fig = go.Figure()
-        fig.add_vrect(x0=fit_min, x1=fit_max, fillcolor="rgba(46,122,245,0.06)", line_width=0,
-                      annotation_text="분석 구간", annotation_position="top left", annotation_font_size=10)
-        table_data = {"Name": [], "Peaks(nm)": [], "Abs(AU)": []}
-        row_colors = []
+    with col_chart:
+        with st.container(key="card_chart"):
+            names_all = [it["name"] for it in plot_items_all]
+            picker_key = "vis_" + str(abs(hash(tuple(names_all))))
+            visible = series_picker(names_all, picker_key)
+            active_plot_items = [it for it in plot_items_all if it["name"] in visible]
 
-        for item in active_plot_items:
-            name, series = item["name"], item["data"]
-            color = color_palette[item["color_idx"] % len(color_palette)]
-
-            fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, line=dict(color=color, width=1.5)))
-
-            mask = (series.index >= min_wave) & (series.index <= max_wave)
-            if np.any(mask):
-                range_series = series[mask].dropna()
-                if range_series.empty: continue
-                p_wave, p_abs = range_series.idxmax(), range_series.max()
-                fig.add_trace(go.Scatter(x=[p_wave], y=[p_abs], mode='markers+text', marker=dict(color=color, size=8), text=[f"{p_wave:.0f}nm<br>({p_abs:.2f})"], textposition="top right", textfont=dict(color=color, size=11), showlegend=False, hoverinfo='skip'))
-                table_data["Name"].append(name); table_data["Peaks(nm)"].append(f"{p_wave:.1f}"); table_data["Abs(AU)"].append(f"{p_abs:.5f}")
-                row_colors.append(color)
-
-        fig.update_layout(title=f"Spectrum Comparison ({min_wave:.0f}nm ~ {max_wave:.0f}nm Max Peak)", xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[190, 1100]), yaxis=dict(showgrid=True, gridcolor='#eaeaea'), **PLOT_LAYOUT)
-
-        # 농도 분석: 피크 하나가 아니라 분석 구간 전체를 최소제곱으로 맞춘 배율로 계산
-        plain_summary_text = ""
-        target_item = next((it for it in active_plot_items if it.get("is_target")), None)
-        ref_item = next((it for it in active_plot_items if not it.get("is_target")), None)
-        if target_item is not None and ref_item is not None:
-            sf = scale_fit(ref_item["data"], target_item["data"], fit_min, fit_max, use_baseline)
-            if sf is not None:
-                k, r2_k = sf
-                diff_pct = (k - 1) * 100
-                direction_str = "진합니다" if diff_pct > 0 else "연합니다"
-                plain_summary_text = (f"농도 분석: {target_item['name']}이 {ref_item['name']} 대비 약 {abs(diff_pct):.1f}% 더 {direction_str} "
-                                      f"({fit_min:.0f}–{fit_max:.0f} nm 기준, R²={r2_k:.3f})")
-                if np.isfinite(r2_k) and r2_k < 0.9:
-                    plain_summary_text += " — 스펙트럼 모양 차이가 커서 참고용입니다"
-                plain_summary_text += "."
-
-        with col_right:
-            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
-
-        with col_left:
-            if plain_summary_text:
-                st.write(f"- **{plain_summary_text}**")
-
-            html_lab_part = ""
+            fig = go.Figure()
+            fig.add_vrect(x0=fit_min, x1=fit_max, fillcolor="rgba(27,72,157,0.05)", line_width=0,
+                          annotation_text="분석 구간", annotation_position="top left",
+                          annotation_font=dict(size=10, color=NAVY))
+            table_rows = []
             for item in active_plot_items:
-                chip_html = lab_chip_html(item["name"], item["data"])
-                if chip_html:
-                    st.markdown(chip_html, unsafe_allow_html=True)
-                    html_lab_part += chip_html
+                name, series, color = item["name"], item["data"], item["color"]
+                fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name,
+                                         line=dict(color=color, width=2.4 if item.get("is_target") else 1.6)))
+                mask = (series.index >= min_wave) & (series.index <= max_wave)
+                if np.any(mask):
+                    range_series = series[mask].dropna()
+                    if range_series.empty: continue
+                    p_wave, p_abs = range_series.idxmax(), range_series.max()
+                    fig.add_trace(go.Scatter(x=[p_wave], y=[p_abs], mode='markers+text',
+                                             marker=dict(color=color, size=9, line=dict(color="white", width=2)),
+                                             text=[f"{p_wave:.0f} nm"], textposition="top center",
+                                             textfont=dict(color=color, size=11), showlegend=False, hoverinfo='skip'))
+                    table_rows.append((name, color, p_wave, p_abs))
+            style_fig(fig, height=500, x_range=[190, 1100])
+            if active_plot_items:
+                st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
+            else:
+                st.info("위에서 표시할 스펙트럼을 하나 이상 선택하세요.", icon=":material/visibility:")
 
-            if table_data["Name"]:
-                df_summary = pd.DataFrame(table_data)
-                df_summary.index = range(1, len(df_summary) + 1)
-                def color_rows(row):
-                    return [f'color: {row_colors[row.name - 1]}; font-weight: bold;'] * len(row)
-                st.table(df_summary.style.apply(color_rows, axis=1))
+    # 농도 분석: 분석 구간 전체를 최소제곱으로 맞춘 배율
+    plain_summary_text = ""
+    conc_html = ""
+    target_item = next((it for it in active_plot_items if it.get("is_target")), None)
+    ref_item = next((it for it in active_plot_items if not it.get("is_target")), None)
+    if target_item is not None and ref_item is not None:
+        sf = scale_fit(ref_item["data"], target_item["data"], fit_min, fit_max, use_baseline)
+        if sf is not None:
+            k, r2_k = sf
+            diff_pct = (k - 1) * 100
+            direction_str = "진합니다" if diff_pct > 0 else "연합니다"
+            plain_summary_text = (f"농도 분석: {target_item['name']}이 {ref_item['name']} 대비 약 {abs(diff_pct):.1f}% 더 {direction_str} "
+                                  f"({fit_min:.0f}–{fit_max:.0f} nm 기준, R²={r2_k:.3f})")
+            low_fit = np.isfinite(r2_k) and r2_k < 0.9
+            if low_fit:
+                plain_summary_text += " — 스펙트럼 모양 차이가 커서 참고용입니다"
+            plain_summary_text += "."
+            arrow = "▲" if diff_pct > 0 else "▼"
+            note = f"<div class='s' style='color:{WARN}'>모양 차이가 커서 참고용입니다</div>" if low_fit else ""
+            conc_html = (f"<div class='callout'><div class='s'>{html_lib.escape(ref_item['name'])} 대비 농도</div>"
+                         f"<div class='big'>{arrow} {abs(diff_pct):.1f}% {'진함' if diff_pct > 0 else '연함'}</div>"
+                         f"<div class='s'>R² {r2_k:.3f} · {fit_min:.0f}–{fit_max:.0f} nm 전체 기준</div>{note}</div>")
+
+    with col_side:
+        with st.container(key="card_side"):
+            if conc_html:
+                sec("농도 비교", "opacity")
+                st.markdown(conc_html, unsafe_allow_html=True)
+                st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+            chips = "".join(lab_chip_html(it["name"], it["data"], it["color"]) for it in active_plot_items)
+            if chips:
+                sec("색상 (CIE L*a*b*)", "palette")
+                st.markdown(chips, unsafe_allow_html=True)
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+            if table_rows:
+                sec(f"최대 피크 ({min_wave:.0f}–{max_wave:.0f} nm)", "insights")
+                peak_df = pd.DataFrame([(n, f"{w:.1f}", f"{a:.4f}") for n, _, w, a in table_rows],
+                                       columns=["Name", "λmax (nm)", "Abs (AU)"])
+                st.dataframe(peak_df, hide_index=True, use_container_width=True)
 
                 html_content = "<h3>[실무 분석 요약]</h3>"
                 if plain_summary_text: html_content += f"<p><b>{html_lib.escape(plain_summary_text)}</b></p>"
-                if html_lab_part: html_content += html_lab_part + "<br>"
+                copy_chips = "".join(lab_chip_copy_html(it["name"], it["data"]) for it in active_plot_items)
+                if copy_chips: html_content += copy_chips + "<br>"
                 html_content += html_table(["Name", "Peaks (nm)", "Abs (AU)"],
-                                           zip(table_data["Name"], table_data["Peaks(nm)"], table_data["Abs(AU)"]))
+                                           [(n, f"{w:.1f}", f"{a:.5f}") for n, _, w, a in table_rows])
                 if match_res is not None:
                     html_content += f"<br><p><b>DB 매칭 후보 상위 5개</b> ({'미분' if use_deriv else '원'} 스펙트럼, {fit_min:.0f}–{fit_max:.0f} nm)</p>"
                     html_content += html_table(
                         ["순위", "염료", "형태 점수", "Δλmax (nm)", "타겟 농도", "배율 R²"],
                         [(i, r["염료"], f"{r['형태 점수']:.4f}", f"{r['Δλmax(nm)']:+.0f}", f"{r['타겟 농도(%)']:.0f}%", f"{r['배율 적합 R²']:.3f}")
                          for i, r in match_res.head(5).iterrows()])
-                render_copy_button(html_content, "표 + 분석 요약 복사하기")
+                render_copy_button(html_content, "표 + 분석 요약 복사")
 
 
 # ==========================================
-# 모드 2: 다성분 혼합 비율 예측 (NNLS)
+# 모드 2: 혼합 비율 예측 (NNLS)
 # ==========================================
 elif app_mode == "MIX":
-    st.markdown("<h2 style='margin-top: 15px; display:flex; align-items:center;'><span class='material-symbols-outlined' style='font-size:32px; margin-right:8px;'>science</span>다성분 혼합 비율 예측 (NNLS)</h2>", unsafe_allow_html=True)
-    st.caption(f"선택한 성분 데이터들을 어떤 비율로 섞어야 타겟 스펙트럼이 되는지 분석합니다. (분석 구간 {fit_min:.0f}–{fit_max:.0f} nm)")
+    st.markdown("<div class='page-title'>혼합 비율 예측</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='page-sub'>고른 염료들을 어떤 비율로 섞으면 타겟 스펙트럼이 되는지 계산합니다 (NNLS) · 분석 구간 {fit_min:.0f}–{fit_max:.0f} nm</div>", unsafe_allow_html=True)
 
     if target_series_sd is not None:
         mix_target_series, mix_target_name, comp_dyes = target_series_sd, target_name, selected_dyes
@@ -633,13 +843,19 @@ elif app_mode == "MIX":
             comp_dyes = selected_dyes[1:]
 
     if mix_target_series is None:
-        st.info("타겟(혼합물) 데이터가 없습니다. SD 파일을 업로드하거나 DB 염료를 1개 이상 선택하세요.", icon=":material/arrow_back:")
+        empty_state("science", "혼합물 시료가 필요합니다",
+                    "SD 파일을 올리거나, DB 염료 중 첫 번째로 고른 것을 타겟으로 씁니다.",
+                    [("타겟 준비", "혼합물 SD 파일을 올리세요."),
+                     ("구성 염료 선택", "섞였을 것 같은 염료를 2~6개 고르세요."),
+                     ("비율 확인", "예측 비율과 재구성 스펙트럼 일치도를 봅니다.")])
     elif len(comp_dyes) == 0:
-        st.warning(f"'{mix_target_name}'(을)를 분석하기 위한 구성 염료(2번째 이후 선택)를 추가로 선택해주세요.", icon=":material/add_circle:")
+        st.info(f"'{mix_target_name}'을(를) 만들 구성 염료를 왼쪽 ②에서 골라 주세요."
+                + ("" if target_series_sd is not None else " (첫 번째로 고른 염료가 타겟, 두 번째부터 구성 성분)"),
+                icon=":material/add_circle:")
     else:
         fit = nnls_fit(mix_target_series, combined_df.loc[comp_dyes], fit_min, fit_max, use_baseline)
         if fit is None:
-            st.warning("분석 구간에서 공통 파장이 부족합니다. 사이드바의 분석 구간을 확인하세요.", icon=":material/warning:")
+            st.warning("분석 구간에서 공통 파장이 부족합니다. 고급 설정의 분석 구간을 확인하세요.", icon=":material/warning:")
         else:
             coeffs = fit["coeffs"]
             total_coeff = np.sum(coeffs)
@@ -650,42 +866,65 @@ elif app_mode == "MIX":
             nnls_result_str = ", ".join([f"{row['Name']}({row['Ratio(%)']:.1f}%)" for _, row in nnls_df.iterrows() if row['Ratio(%)'] > 0.1]) or "-"
             plain_summary_text = f"예측 혼합비 (Target: {mix_target_name}, R²={r2:.3f}):<br>{nnls_result_str}"
 
-            col_n1, col_n2 = st.columns([1, 2])
-            with col_n1:
-                st.markdown(f"**Target:** {mix_target_name}")
-                m1, m2 = st.columns(2)
-                m1.metric("적합도 R²", f"{r2:.4f}")
-                m2.metric("RMSE (AU)", f"{rmse:.4f}")
-                if np.isfinite(r2) and r2 >= MIX_GOOD_R2:
-                    st.success("재구성 스펙트럼이 타겟과 잘 일치합니다.", icon=":material/check_circle:")
-                elif np.isfinite(r2) and r2 >= MIX_OK_R2:
-                    st.info("대체로 맞지만 일부 파장대에서 차이가 있습니다. 오른쪽 잔차 그래프를 확인하세요.", icon=":material/info:")
-                else:
-                    st.warning("잘 맞지 않습니다. 빠진 성분이 있거나 선택한 성분이 실제와 다를 수 있습니다.", icon=":material/warning:")
+            if np.isfinite(r2) and r2 >= MIX_GOOD_R2:
+                verdict = pill("잘 일치", "ok", "check_circle"); vmsg = "재구성 스펙트럼이 타겟과 잘 맞습니다."
+            elif np.isfinite(r2) and r2 >= MIX_OK_R2:
+                verdict = pill("대체로 일치", "warn", "info"); vmsg = "일부 파장대에서 차이가 있습니다. 잔차 곡선을 확인하세요."
+            else:
+                verdict = pill("불일치", "bad", "error"); vmsg = "빠진 성분이 있거나 선택한 성분이 실제와 다를 수 있습니다."
 
-                html_lab_part = ""
-                for d_name in [mix_target_name] + comp_dyes:
-                    chip_html = lab_chip_html(d_name, combined_df.loc[d_name], compact=True)
-                    if chip_html:
-                        st.markdown(chip_html, unsafe_allow_html=True)
-                        html_lab_part += chip_html
+            col_l, col_r = st.columns([1, 2.1], gap="medium")
+            with col_l:
+                with st.container(key="card_mixres"):
+                    st.markdown(
+                        f"<div class='sec'>{icon('target')}타겟</div>"
+                        f"<div style='font-size:20px;font-weight:800;color:{INK};margin-bottom:8px'>{html_lib.escape(str(mix_target_name))}</div>"
+                        f"{verdict}<div style='color:{MUTED};font-size:13px;margin:6px 0 4px'>{vmsg}</div>"
+                        f"<div class='kpis' style='grid-template-columns:1fr 1fr;margin-top:12px'>"
+                        f"<div class='kpi accent'><div class='k'>적합도 R²</div><div class='v'>{r2:.4f}</div></div>"
+                        f"<div class='kpi'><div class='k'>RMSE</div><div class='v'>{rmse:.4f}<small>AU</small></div></div></div>",
+                        unsafe_allow_html=True)
 
-                st.dataframe(nnls_df.style.format({"Ratio(%)": "{:.1f}%", "Coefficient": "{:.4f}"}), use_container_width=True, hide_index=True)
-                st.caption("Ratio는 각 기준 스펙트럼의 배수(Coefficient)를 합 100%로 환산한 값입니다. "
-                           "기준 스펙트럼들의 측정 농도가 서로 다르면 실제 배합비와 다르므로, 계수 × 기준 농도로 환산해서 보세요.")
+                    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+                    sec("예측 혼합 비율", "donut_small")
+                    rows_html = ""
+                    for _, row in nnls_df.iterrows():
+                        info = get_color_info(row["Name"], combined_df.loc[row["Name"]])
+                        dot = f"<span class='dot' style='background:{info[3]};width:12px;height:12px;border:1px solid rgba(0,0,0,.1)'></span>" if info else ""
+                        p = max(0.0, float(row["Ratio(%)"]))
+                        rows_html += (f"<div class='ratio-row' style='opacity:{1 if p >= 0.1 else 0.45}'><div><div class='nm'>{dot}{html_lib.escape(str(row['Name']))}</div>"
+                                      f"<div class='bar'><i style='width:{p:.1f}%'></i></div></div>"
+                                      f"<div class='pct'>{p:.1f}%</div></div>")
+                    st.markdown(rows_html, unsafe_allow_html=True)
+                    st.caption("비율은 각 기준 스펙트럼 배수(계수)를 합 100%로 환산한 값입니다. 기준 스펙트럼의 측정 농도가 서로 다르면 계수 × 기준 농도로 환산해서 보세요.")
+                    with st.expander("계수 원본 보기"):
+                        st.dataframe(nnls_df, hide_index=True, use_container_width=True,
+                                     column_config={"Ratio(%)": st.column_config.NumberColumn("Ratio", format="%.1f%%"),
+                                                    "Coefficient": st.column_config.NumberColumn("Coefficient", format="%.4f")})
 
-                html_content = f"<h3>[혼합 비율 예측 요약]</h3><p><b>{html_lib.escape(plain_summary_text).replace('&lt;br&gt;', '<br>')}</b></p>"
-                html_content += f"<p>적합도 R² = {r2:.4f}, RMSE = {rmse:.4f} AU (분석 구간 {fit_min:.0f}–{fit_max:.0f} nm)</p>"
-                if html_lab_part: html_content += html_lab_part + "<br>"
-                html_content += html_table(["Component Name", "Ratio (%)", "Coefficient"],
-                                           [(r["Name"], f"{r['Ratio(%)']:.1f}%", f"{r['Coefficient']:.4f}") for _, r in nnls_df.iterrows()])
-                render_copy_button(html_content, "표 + 예측 결과 복사하기")
+                    html_content = f"<h3>[혼합 비율 예측 요약]</h3><p><b>{html_lib.escape(plain_summary_text).replace('&lt;br&gt;', '<br>')}</b></p>"
+                    html_content += f"<p>적합도 R² = {r2:.4f}, RMSE = {rmse:.4f} AU (분석 구간 {fit_min:.0f}–{fit_max:.0f} nm)</p>"
+                    copy_chips = "".join(lab_chip_copy_html(d, combined_df.loc[d]) for d in [mix_target_name] + comp_dyes)
+                    if copy_chips: html_content += copy_chips + "<br>"
+                    html_content += html_table(["Component Name", "Ratio (%)", "Coefficient"],
+                                               [(r["Name"], f"{r['Ratio(%)']:.1f}%", f"{r['Coefficient']:.4f}") for _, r in nnls_df.iterrows()])
+                    render_copy_button(html_content, "표 + 예측 결과 복사")
 
-            with col_n2:
-                fig_nnls = go.Figure()
-                fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"Original ({mix_target_name})", line=dict(color='black', width=1.5)))
-                fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="Reconstructed (Simulated)", line=dict(color='red', width=1.5, dash='dash')))
-                fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"] - fit["Y_pred"], mode='lines', name="Residual (Original − Reconstructed)", line=dict(color='gray', width=1, dash='dot')))
-                title_suffix = " · 베이스라인 보정" if use_baseline else ""
-                fig_nnls.update_layout(title=f"Target vs Reconstructed Spectrum (R²={r2:.4f}{title_suffix})", xaxis=dict(showgrid=True, gridcolor='#eaeaea', range=[fit_min, fit_max]), yaxis=dict(showgrid=True, gridcolor='#eaeaea', zeroline=True, zerolinecolor='#cccccc'), **PLOT_LAYOUT)
-                st.plotly_chart(fig_nnls, use_container_width=True, config={'scrollZoom': True})
+            with col_r:
+                with st.container(key="card_mixchart"):
+                    sec("타겟 vs 재구성 스펙트럼" + (" · 베이스라인 보정" if use_baseline else ""), "stacked_line_chart")
+                    fig_nnls = go.Figure()
+                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"타겟 ({mix_target_name})", line=dict(color=NAVY, width=2.6)))
+                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="재구성", line=dict(color="#e4572e", width=2, dash='dash')))
+                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"] - fit["Y_pred"], mode='lines', name="잔차", line=dict(color="#9aa3b2", width=1.2, dash='dot'),
+                                                  fill="tozeroy", fillcolor="rgba(154,163,178,0.12)"))
+                    style_fig(fig_nnls, height=470, x_range=[fit_min, fit_max])
+                    st.plotly_chart(fig_nnls, use_container_width=True, config=PLOT_CONFIG)
+
+                chips = "".join(lab_chip_html(d, combined_df.loc[d]) for d in [mix_target_name] + comp_dyes)
+                if chips:
+                    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+                    with st.container(key="card_mixcolors"):
+                        sec("색상 (CIE L*a*b*)", "palette")
+                        st.markdown(f"<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));column-gap:20px'>{chips}</div>",
+                                    unsafe_allow_html=True)
