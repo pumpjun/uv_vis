@@ -43,8 +43,14 @@ LINE = "#e3e7ef"
 OK, OK_BG = "#167a4a", "#e6f4ec"
 WARN, WARN_BG = "#a65f00", "#fff4e0"
 BAD, BAD_BG = "#b42318", "#fdecea"
-# 첫 번째(타겟)는 시그니처 네이비, 나머지는 서로 잘 구분되는 색
-SERIES_COLORS = [NAVY, "#e4572e", "#17a398", "#f2a541", "#8e5ccf", "#d6457a", "#5b8c2a", "#7a7f8c"]
+# 그래프 시리즈 색상 (고정) — 1 검정, 2 빨강, 3 파랑, 4 보라, 이후 구분 잘 되는 색
+# ※ 기존에 보던 색이므로 순서를 바꾸지 마세요
+SERIES_COLORS = ["#000000", "#e01e1e", "#1f4fd8", "#8e3ccf", "#f28c00", "#0f9d74", "#d6457a", "#7a5230"]
+
+def hex_rgba(hex_color, alpha):
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 # ==========================================
 # 상태
@@ -604,11 +610,18 @@ def lab_chip_copy_html(name, series):
             f"<td style='padding:0 10px;font-size:13px;'><b>{html_lib.escape(str(name))}</b> ({tag})<br>"
             f"L={L}, a={a}, b={b}</td></tr></table>")
 
-def html_table(headers, rows):
+def html_table(headers, rows, first_col_colors=None):
+    """first_col_colors: 각 행 첫 칸(이름) 글자색 — 그래프 색과 맞출 때 사용"""
     out = "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif; font-size: 13px;'>"
     out += f"<tr style='background-color: {NAVY}; color: #fff;'>" + "".join(f"<th style='padding: 7px 10px;'>{html_lib.escape(str(h))}</th>" for h in headers) + "</tr>"
-    for r in rows:
-        out += "<tr>" + "".join(f"<td style='padding: 7px 10px;'>{html_lib.escape(str(c))}</td>" for c in r) + "</tr>"
+    for ri, r in enumerate(rows):
+        cells = []
+        for ci, c in enumerate(r):
+            style = "padding: 7px 10px;"
+            if ci == 0 and first_col_colors and ri < len(first_col_colors):
+                style += f" color: {first_col_colors[ri]}; font-weight: bold;"
+            cells.append(f"<td style='{style}'>{html_lib.escape(str(c))}</td>")
+        out += "<tr>" + "".join(cells) + "</tr>"
     return out + "</table>"
 
 def render_copy_button(html_content, label):
@@ -658,6 +671,21 @@ def style_fig(fig, title=None, height=470, x_range=None):
     return fig
 
 PLOT_CONFIG = {"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+
+def series_picker_css(colors, box_key):
+    """선택 버튼(pills)을 그래프 색과 같은 색으로 칠함 — n번째 버튼 = n번째 시리즈"""
+    rules = []
+    for i, c in enumerate(colors, 1):
+        sels = [f".st-key-{box_key} [data-testid='stButtonGroup'] button:nth-of-type({i})",
+                f".st-key-{box_key} [data-testid='stButtonGroup'] > div > div:nth-child({i}) button"]
+        base = ", ".join(sels)
+        active = ", ".join(f"{x}[data-testid='stBaseButton-pillsActive']" for x in sels)
+        dot = ", ".join(f"{x}::before" for x in sels)
+        rules.append(f"{base} {{ color: {c} !important; border: 1.5px solid {hex_rgba(c, .35)} !important; background: #fff !important; opacity: .55; }}")
+        rules.append(f"{active} {{ color: {c} !important; border: 1.5px solid {c} !important; background: {hex_rgba(c, .10)} !important; opacity: 1; font-weight: 700 !important; }}")
+        rules.append(f"{dot} {{ content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {c}; margin-right: 7px; flex: none; }}")
+    rules.append(f".st-key-{box_key} [data-testid='stButtonGroup'] button p {{ color: inherit !important; font-weight: inherit !important; }}")
+    st.markdown("<style>" + " ".join(rules) + "</style>", unsafe_allow_html=True)
 
 def series_picker(names, key):
     """그래프에 보일 시리즈 선택 (pills, 구버전이면 multiselect)"""
@@ -740,7 +768,9 @@ if app_mode == "SPEC":
         with st.container(key="card_chart"):
             names_all = [it["name"] for it in plot_items_all]
             picker_key = "vis_" + str(abs(hash(tuple(names_all))))
-            visible = series_picker(names_all, picker_key)
+            series_picker_css([it["color"] for it in plot_items_all], "serpick")
+            with st.container(key="serpick"):
+                visible = series_picker(names_all, picker_key)
             active_plot_items = [it for it in plot_items_all if it["name"] in visible]
 
             fig = go.Figure()
@@ -808,14 +838,18 @@ if app_mode == "SPEC":
                 sec(f"최대 피크 ({min_wave:.0f}–{max_wave:.0f} nm)", "insights")
                 peak_df = pd.DataFrame([(n, f"{w:.1f}", f"{a:.4f}") for n, _, w, a in table_rows],
                                        columns=["Name", "λmax (nm)", "Abs (AU)"])
-                st.dataframe(peak_df, hide_index=True, use_container_width=True)
+                name_colors = [c for _, c, _, _ in table_rows]
+                peak_styled = peak_df.style.apply(
+                    lambda col: [f"color: {c}; font-weight: 700" for c in name_colors], subset=["Name"])
+                st.dataframe(peak_styled, hide_index=True, use_container_width=True)
 
                 html_content = "<h3>[실무 분석 요약]</h3>"
                 if plain_summary_text: html_content += f"<p><b>{html_lib.escape(plain_summary_text)}</b></p>"
                 copy_chips = "".join(lab_chip_copy_html(it["name"], it["data"]) for it in active_plot_items)
                 if copy_chips: html_content += copy_chips + "<br>"
                 html_content += html_table(["Name", "Peaks (nm)", "Abs (AU)"],
-                                           [(n, f"{w:.1f}", f"{a:.5f}") for n, _, w, a in table_rows])
+                                           [(n, f"{w:.1f}", f"{a:.5f}") for n, _, w, a in table_rows],
+                                           first_col_colors=[c for _, c, _, _ in table_rows])
                 if match_res is not None:
                     html_content += f"<br><p><b>DB 매칭 후보 상위 5개</b> ({'미분' if use_deriv else '원'} 스펙트럼, {fit_min:.0f}–{fit_max:.0f} nm)</p>"
                     html_content += html_table(
