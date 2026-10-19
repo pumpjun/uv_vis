@@ -112,7 +112,7 @@ html, body, [class*="css"], .stApp, button, input, textarea, select {
 .stApp { background: #f5f7fb; }
 [data-testid="stHeader"] { display: none !important; }
 [data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarHeader"] { display: none !important; }
-.block-container { padding-top: 0 !important; padding-bottom: 3rem !important; max-width: 1500px; }
+.block-container { padding-top: 0 !important; padding-bottom: 3rem !important; padding-left: 2rem !important; padding-right: 2rem !important; max-width: none !important; }
 [data-testid="stAppViewContainer"] { overflow-y: scroll !important; }
 
 /* ---------- 상단 바: Spectra50 · SpectraMatch와 같은 네이비 고정 바 ---------- */
@@ -559,8 +559,8 @@ with st.sidebar.expander("고급 설정", icon=":material/tune:"):
     use_deriv = st.toggle("1차 미분으로 매칭", value=True, help="모양 비교를 미분 스펙트럼으로 합니다. 분산염료에 권장.")
     st.markdown("**최대 피크 찾는 구간 (nm)**")
     col1, col2 = st.columns(2)
-    min_wave = col1.number_input("최소", value=300.0, step=10.0, format="%.0f")
-    max_wave = col2.number_input("최대", value=800.0, step=10.0, format="%.0f")
+    min_wave = col1.number_input("최소", value=380.0, step=10.0, format="%.0f")
+    max_wave = col2.number_input("최대", value=780.0, step=10.0, format="%.0f")
 if fit_min >= fit_max:
     st.sidebar.warning("분석 구간이 올바르지 않아 380~780 nm를 사용합니다.", icon=":material/warning:")
     fit_min, fit_max = 380.0, 780.0
@@ -677,7 +677,7 @@ def render_copy_button(html_content, label):
 
 def style_fig(fig, title=None, height=470, x_range=None):
     fig.update_layout(
-        title=dict(text=title, font=dict(size=14, color=INK), x=0.01) if title else None,
+        title=dict(text=title or "", font=dict(size=14, color=INK), x=0.01),   # 제목이 없을 때 None을 주면 그래프 위에 'undefined'가 찍힘
         height=height, hovermode="x unified", dragmode="zoom",
         margin=dict(l=10, r=10, t=44 if title else 16, b=10),
         plot_bgcolor="white", paper_bgcolor="white",
@@ -778,12 +778,13 @@ if app_mode == "SPEC":
             st.markdown(
                 f"<div class='sec'>{icon('target')}DB 자동 매칭 · {'미분' if use_deriv else '원'} 스펙트럼</div>"
                 f"<div class='hero'>{sw}<div><div class='lbl'>{html_lib.escape(str(target_name))} 와(과) 가장 비슷한 염료</div>"
-                f"<div class='name'>{html_lib.escape(str(top['염료']))}</div><div style='margin-top:6px'>{status}</div></div></div>",
+                f"<div class='name'>{html_lib.escape(str(top['염료']))}</div><div style='margin-top:6px'>{status}</div></div></div>"
+                + (("<ul class='issues'>" + "".join(f"<li>{html_lib.escape(str(x_))}</li>" for x_ in match_issues) + "</ul>") if match_issues else ""),
                 unsafe_allow_html=True)
         st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
     # ---------- ② 그래프 + 요약 ----------
-    col_chart, col_side = st.columns([2.3, 1], gap="medium")
+    col_chart, col_side = st.columns([1.95, 1], gap="medium")
 
     with col_chart:
         with st.container(key="card_chart"):
@@ -802,14 +803,14 @@ if app_mode == "SPEC":
             for item in active_plot_items:
                 name, series, color = item["name"], item["data"], item["color"]
                 fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name,
-                                         line=dict(color=color, width=2.4 if item.get("is_target") else 1.6)))
+                                         line=dict(color=color, width=1.2)))   # 모든 선 같은 굵기 (얇게)
                 mask = (series.index >= min_wave) & (series.index <= max_wave)
                 if np.any(mask):
                     range_series = series[mask].dropna()
                     if range_series.empty: continue
                     p_wave, p_abs = range_series.idxmax(), range_series.max()
                     fig.add_trace(go.Scatter(x=[p_wave], y=[p_abs], mode='markers+text',
-                                             marker=dict(color=color, size=9, line=dict(color="white", width=2)),
+                                             marker=dict(color=color, size=7, line=dict(color="white", width=1.5)),
                                              text=[f"{p_wave:.0f} nm"], textposition="top center",
                                              textfont=dict(color=color, size=11), showlegend=False, hoverinfo='skip'))
                     table_rows.append((name, color, p_wave, p_abs))
@@ -969,8 +970,8 @@ elif app_mode == "MIX":
                 with st.container(key="card_mixchart"):
                     sec("타겟 vs 재구성 스펙트럼" + (" · 베이스라인 보정" if use_baseline else ""), "stacked_line_chart")
                     fig_nnls = go.Figure()
-                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"타겟 ({mix_target_name})", line=dict(color=NAVY, width=2.6)))
-                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="재구성", line=dict(color="#e4572e", width=2, dash='dash')))
+                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"타겟 ({mix_target_name})", line=dict(color=NAVY, width=1.2)))
+                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="재구성", line=dict(color="#e4572e", width=1.2, dash='dash')))
                     fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"] - fit["Y_pred"], mode='lines', name="잔차", line=dict(color="#9aa3b2", width=1.2, dash='dot'),
                                                   fill="tozeroy", fillcolor="rgba(154,163,178,0.12)"))
                     style_fig(fig_nnls, height=470, x_range=[fit_min, fit_max])
