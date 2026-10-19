@@ -19,6 +19,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# 그래프(plotly) 기본 글꼴: 영어·숫자 Outfit, 한글 나눔스퀘어 네오 (글꼴 파일은 static/fonts, 표 글꼴은 .streamlit/config.toml)
+try:
+    import plotly.io as _oy_pio
+    _oy_pio.templates[_oy_pio.templates.default].layout.font.family = "OY Outfit, OY NanumSquare Neo, Pretendard, Malgun Gothic, sans-serif"
+except Exception:
+    pass
 
 # ==========================================
 # ⚙️ 매칭 신뢰도 판정 기준 (자기검증 결과를 보고 조정하세요)
@@ -91,9 +97,16 @@ CSS = """
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 <style>
+/* 글꼴: 영어·숫자 = Outfit, 한글 = 나눔스퀘어 네오 (저장소 static/fonts 폴더의 파일) */
+@font-face { font-family: 'OY Outfit'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2-variations'), url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2'); unicode-range: U+0000-001F,U+0021-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 100 349; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-aLt.woff2') format('woff2'); }
+@font-face { font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 350 549; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-bRg.woff2') format('woff2'); }
+@font-face { font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 550 749; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-cBd.woff2') format('woff2'); }
+@font-face { font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 750 849; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-dEb.woff2') format('woff2'); }
+@font-face { font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 850 900; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-eHv.woff2') format('woff2'); }
 :root { --navy: NAVY_; --navy-dark: NAVYD_; --navy-soft: NAVYS_; --ink: INK_; --muted: MUTED_; --line: LINE_; }
 html, body, [class*="css"], .stApp, button, input, textarea, select {
-    font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif !important;
+    font-family: 'OY Outfit', 'OY NanumSquare Neo', 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif !important;
 }
 .material-symbols-outlined { font-family: 'Material Symbols Rounded', 'Material Symbols Outlined' !important; font-weight: normal; font-style: normal; letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; line-height: 1; vertical-align: middle; }
 .stApp { background: #f5f7fb; }
@@ -627,7 +640,15 @@ def html_table(headers, rows, first_col_colors=None):
 def render_copy_button(html_content, label):
     payload = json.dumps(html_content)
     components.html(f"""
-    <button onclick="copyToClipboard(this)" style="width: 100%; background-color: {NAVY}; color: white; border: none; padding: 11px 0; border-radius: 10px; font-size: 14.5px; cursor: pointer; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.2s; font-family: 'Pretendard','Malgun Gothic',sans-serif;"
+    <style>
+    @font-face {{ font-family: 'OY Outfit'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2-variations'), url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2'); unicode-range: U+0000-001F,U+0021-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }}
+    @font-face {{ font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 100 349; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-aLt.woff2') format('woff2'); }}
+    @font-face {{ font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 350 549; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-bRg.woff2') format('woff2'); }}
+    @font-face {{ font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 550 749; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-cBd.woff2') format('woff2'); }}
+    @font-face {{ font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 750 849; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-dEb.woff2') format('woff2'); }}
+    @font-face {{ font-family: 'OY NanumSquare Neo'; font-style: normal; font-weight: 850 900; font-display: swap; src: url('app/static/fonts/NanumSquareNeoTTF-eHv.woff2') format('woff2'); }}
+    </style>
+    <button onclick="copyToClipboard(this)" style="width: 100%; background-color: {NAVY}; color: white; border: none; padding: 11px 0; border-radius: 10px; font-size: 14.5px; cursor: pointer; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.2s; font-family: 'OY Outfit','OY NanumSquare Neo','Pretendard','Malgun Gothic',sans-serif;"
         onmouseover="this.style.backgroundColor='{NAVY_DARK}'" onmouseout="this.style.backgroundColor='{NAVY}'">
         <svg xmlns="http://www.w3.org/2000/svg" height="19" viewBox="0 -960 960 960" width="19" fill="white"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
         <span>{label}</span>
@@ -660,7 +681,7 @@ def style_fig(fig, title=None, height=470, x_range=None):
         height=height, hovermode="x unified", dragmode="zoom",
         margin=dict(l=10, r=10, t=44 if title else 16, b=10),
         plot_bgcolor="white", paper_bgcolor="white",
-        font=dict(family="Pretendard, Malgun Gothic, sans-serif", color=INK, size=12),
+        font=dict(family="OY Outfit, OY NanumSquare Neo, Pretendard, Malgun Gothic, sans-serif", color=INK, size=12),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
         hoverlabel=dict(bgcolor="white", bordercolor=LINE, font_size=12),
     )
