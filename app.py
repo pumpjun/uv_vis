@@ -193,6 +193,7 @@ div[data-testid="stVerticalBlockBorderWrapper"][class*="st-key-card"],
 .kpi.accent .k { color: rgba(255,255,255,.75); } .kpi.accent .v { color: #fff; }
 .issues { margin: 14px 0 0 0; padding: 12px 14px 12px 30px; border-radius: 10px; background: WARNBG_; color: #6b3d00; font-size: 13.5px; }
 .issues li { margin: 2px 0; }
+.issues.near { background: NAVYS_; color: NAVYD_; }
 
 /* 색상 칩 */
 .chip { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
@@ -768,10 +769,15 @@ if app_mode == "SPEC":
         top = match_res.iloc[0]
         top_info = get_color_info(top["염료"], df.loc[top["염료"]])
         sw = f"<div class='sw' style='background:{top_info[3]}'></div>" if top_info else ""
+        # 판정 4단계: 신뢰할 수 있는 일치 → 거의 일치(1위는 잘 맞지만 2위도 거의 같음) → 확인 필요 → 일치 없음
+        _near = bool(match_issues) and top["형태 점수"] >= MATCH_MIN_SCORE and \
+            (not np.isfinite(top["Δλmax(nm)"]) or abs(top["Δλmax(nm)"]) <= MATCH_MAX_DLMAX)
         if not match_issues:
             status = pill("신뢰할 수 있는 일치", "ok", "check_circle")
         elif top["형태 점수"] < MATCH_MIN_SCORE:
             status = pill("일치하는 염료 없음 / 혼합 의심", "bad", "error")
+        elif _near:
+            status = pill("거의 일치 · 비슷한 염료 있음", "info", "done_all")
         else:
             status = pill("확인 필요", "warn", "warning")
         with st.container(key="card_match"):
@@ -779,7 +785,9 @@ if app_mode == "SPEC":
                 f"<div class='sec'>{icon('target')}DB 자동 매칭 · {'미분' if use_deriv else '원'} 스펙트럼</div>"
                 f"<div class='hero'>{sw}<div><div class='lbl'>{html_lib.escape(str(target_name))} 와(과) 가장 비슷한 염료</div>"
                 f"<div class='name'>{html_lib.escape(str(top['염료']))}</div><div style='margin-top:6px'>{status}</div></div></div>"
-                + (("<ul class='issues'>" + "".join(f"<li>{html_lib.escape(str(x_))}</li>" for x_ in match_issues) + "</ul>") if match_issues else ""),
+                + ((f"<ul class='issues{' near' if _near else ''}'>" + "".join(f"<li>{html_lib.escape(str(x_))}</li>" for x_ in match_issues)
+                    + ("<li>1위 염료로 보는 것이 맞지만, 2위 염료와 스펙트럼이 거의 같아 실제 염료 확인이 필요하면 2위도 함께 보세요.</li>" if _near else "")
+                    + "</ul>") if match_issues else ""),
                 unsafe_allow_html=True)
         st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
