@@ -627,15 +627,21 @@ def lab_chip_copy_html(name, series, name_color=None):
 
 def html_table(headers, rows, first_col_colors=None):
     """first_col_colors: 각 행 첫 칸(이름) 글자색 — 그래프 색과 맞출 때 사용"""
-    out = "<table border='1' style='border-collapse: collapse; text-align: center; font-family: sans-serif; font-size: 13px;'>"
-    out += f"<tr style='background-color: {NAVY}; color: #fff;'>" + "".join(f"<th style='padding: 7px 10px;'>{html_lib.escape(str(h))}</th>" for h in headers) + "</tr>"
+    # 엑셀은 <tr>에 준 색을 무시하므로 칸(td/th)마다 색을 직접 지정 + bgcolor/<font> 속성도 같이 (워드·엑셀·메일 모두 대응)
+    out = "<table border='1' cellspacing='0' style='border-collapse: collapse; text-align: center; font-family: sans-serif; font-size: 13px;'>"
+    out += "<tr>" + "".join(
+        f"<th bgcolor='{NAVY}' style='background-color: {NAVY}; color: #ffffff; padding: 7px 10px; font-weight: bold;'>"
+        f"<font color='#ffffff'><b>{html_lib.escape(str(h))}</b></font></th>" for h in headers) + "</tr>"
     for ri, r in enumerate(rows):
         cells = []
         for ci, c in enumerate(r):
+            txt = html_lib.escape(str(c))
             style = "padding: 7px 10px;"
             if ci == 0 and first_col_colors and ri < len(first_col_colors):
-                style += f" color: {first_col_colors[ri]}; font-weight: bold;"
-            cells.append(f"<td style='{style}'>{html_lib.escape(str(c))}</td>")
+                col = first_col_colors[ri]
+                style += f" color: {col}; font-weight: bold;"
+                txt = f"<font color='{col}'><b>{txt}</b></font>"
+            cells.append(f"<td style='{style}'>{txt}</td>")
         out += "<tr>" + "".join(cells) + "</tr>"
     return out + "</table>"
 
