@@ -638,8 +638,44 @@ def html_table(headers, rows, first_col_colors=None):
         out += "<tr>" + "".join(cells) + "</tr>"
     return out + "</table>"
 
-def render_copy_button(html_content, label):
+CHART_SLOT = "<!--OY_CHART-->"   # 복사 내용 중 그래프 그림이 들어갈 자리
+
+@st.cache_resource(show_spinner=False)
+def _plotly_js_urls():
+    """복사용 그래프 그림을 만들 plotly.js 주소 (static 폴더에 한 번 저장 → 인터넷 없어도 동작, 실패 시 CDN)"""
+    try:
+        import plotly
+        from plotly.offline import get_plotlyjs, get_plotlyjs_version
+        js_ver = get_plotlyjs_version()
+    except Exception:
+        return None, None
+    cdn = f"https://cdn.plot.ly/plotly-{js_ver}.min.js"
+    fname = f"plotly-{plotly.__version__}.min.js"
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", fname)
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(get_plotlyjs())
+        return f"app/static/{fname}", cdn
+    except Exception:
+        return None, cdn
+
+def render_copy_button(html_content, label, fig=None, img_width=600):
+    """fig를 주면 그래프를 PNG 그림으로 바꿔 html_content의 CHART_SLOT 자리(없으면 맨 앞)에 넣어 함께 복사.
+       img_width: 워드에 붙었을 때 그림 너비(px) — 600px ≈ A4 본문 폭"""
+    if fig is not None and CHART_SLOT not in html_content:
+        html_content = CHART_SLOT + "<br>" + html_content
     payload = json.dumps(html_content)
+    fig_json, render_w, render_h, img_height = "null", 1000, 500, 300
+    local_js, cdn_js = (None, None)
+    if fig is not None:
+        local_js, cdn_js = _plotly_js_urls()
+        render_h = int(fig.layout.height or 470)
+        img_height = round(img_width * render_h / render_w)
+        fig_img = go.Figure(fig)
+        fig_img.update_layout(width=render_w, height=render_h)
+        fig_json = fig_img.to_json()
     components.html(f"""
     <style>
     @font-face {{ font-family: 'OY Outfit'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2-variations'), url('app/static/fonts/outfit-latin-wght-normal.woff2') format('woff2'); unicode-range: U+0000-001F,U+0021-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }}
@@ -655,8 +691,29 @@ def render_copy_button(html_content, label):
         <span>{label}</span>
     </button>
     <script>
-    function copyToClipboard(button) {{
-        const htmlText = {payload};
+    // 그래프 그림은 미리(페이지 열릴 때) 만들어 둠 → 버튼 누르면 바로 복사
+    const FIG = {fig_json};
+    const LOCAL_JS = {json.dumps(local_js)}, CDN_JS = {json.dumps(cdn_js)};
+    let chartUrl = null, chartReady = null;
+    function loadScript(src) {{
+        return new Promise((res, rej) => {{
+            if (!src) {{ rej('no src'); return; }}
+            const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+        }});
+    }}
+    if (FIG) {{
+        chartReady = (window.Plotly ? Promise.resolve() : loadScript(LOCAL_JS).catch(() => loadScript(CDN_JS)))
+            .then(() => Plotly.toImage(FIG, {{format: 'png', width: {render_w}, height: {render_h}, scale: 2}}))
+            .then(url => {{ chartUrl = url; }})
+            .catch(e => console.log('chart image failed', e));
+    }}
+    async function copyToClipboard(button) {{
+        if (FIG && !chartUrl && chartReady) {{ await chartReady; }}
+        const img = chartUrl
+            ? '<img src="' + chartUrl + '" width="{img_width}" height="{img_height}" style="width:{img_width}px;height:{img_height}px;">'
+            : '';
+        const htmlText = {payload}.replace('{CHART_SLOT}', img);
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = htmlText;
         tempDiv.style.position = "absolute"; tempDiv.style.left = "-9999px";
@@ -667,7 +724,7 @@ def render_copy_button(html_content, label):
             document.execCommand('copy');
             const iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" height="19" viewBox="0 -960 960 960" width="19" fill="white"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>';
             const originalHtml = button.innerHTML;
-            button.innerHTML = iconSvg + '<span>복사 완료! (Ctrl+V)</span>';
+            button.innerHTML = iconSvg + '<span>' + ((FIG && !chartUrl) ? '표만 복사됨 (그래프 그림 생성 실패)' : '복사 완료! (Ctrl+V)') + '</span>';
             button.style.backgroundColor = '{OK}';
             setTimeout(() => {{ button.innerHTML = originalHtml; button.style.backgroundColor = '{NAVY}'; }}, 2500);
         }} catch(e) {{}}
@@ -873,7 +930,7 @@ if app_mode == "SPEC":
                     lambda col: [f"color: {c}; font-weight: 700" for c in name_colors], subset=["Name"])
                 st.dataframe(peak_styled, hide_index=True, use_container_width=True)
 
-                html_content = "<h3>[실무 분석 요약]</h3>"
+                html_content = "<h3>[실무 분석 요약]</h3>" + CHART_SLOT + "<br>"
                 if plain_summary_text: html_content += f"<p><b>{html_lib.escape(plain_summary_text)}</b></p>"
                 copy_chips = "".join(lab_chip_copy_html(it["name"], it["data"]) for it in active_plot_items)
                 if copy_chips: html_content += copy_chips + "<br>"
@@ -886,7 +943,7 @@ if app_mode == "SPEC":
                         ["순위", "염료", "형태 점수", "Δλmax (nm)", "타겟 농도", "배율 R²"],
                         [(i, r["염료"], f"{r['형태 점수']:.4f}", f"{r['Δλmax(nm)']:+.0f}", f"{r['타겟 농도(%)']:.0f}%", f"{r['배율 적합 R²']:.3f}")
                          for i, r in match_res.head(5).iterrows()])
-                render_copy_button(html_content, "표 + 분석 요약 복사")
+                render_copy_button(html_content, "그래프 + 표 + 분석 요약 복사", fig=fig if active_plot_items else None)
 
 
 # ==========================================
@@ -937,6 +994,14 @@ elif app_mode == "MIX":
             else:
                 verdict = pill("불일치", "bad", "error"); vmsg = "빠진 성분이 있거나 선택한 성분이 실제와 다를 수 있습니다."
 
+            # 그래프를 먼저 만들어 둠 (왼쪽 복사 버튼에서 그림으로 같이 복사하기 위해)
+            fig_nnls = go.Figure()
+            fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"타겟 ({mix_target_name})", line=dict(color=NAVY, width=1.2)))
+            fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="재구성", line=dict(color="#e4572e", width=1.2, dash='dash')))
+            fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"] - fit["Y_pred"], mode='lines', name="잔차", line=dict(color="#9aa3b2", width=1.2, dash='dot'),
+                                          fill="tozeroy", fillcolor="rgba(154,163,178,0.12)"))
+            style_fig(fig_nnls, height=470, x_range=[fit_min, fit_max])
+
             col_l, col_r = st.columns([1, 2.1], gap="medium")
             with col_l:
                 with st.container(key="card_mixres"):
@@ -966,23 +1031,17 @@ elif app_mode == "MIX":
                                      column_config={"Ratio(%)": st.column_config.NumberColumn("Ratio", format="%.1f%%"),
                                                     "Coefficient": st.column_config.NumberColumn("Coefficient", format="%.4f")})
 
-                    html_content = f"<h3>[혼합 비율 예측 요약]</h3><p><b>{html_lib.escape(plain_summary_text).replace('&lt;br&gt;', '<br>')}</b></p>"
+                    html_content = f"<h3>[혼합 비율 예측 요약]</h3>{CHART_SLOT}<br><p><b>{html_lib.escape(plain_summary_text).replace('&lt;br&gt;', '<br>')}</b></p>"
                     html_content += f"<p>적합도 R² = {r2:.4f}, RMSE = {rmse:.4f} AU (분석 구간 {fit_min:.0f}–{fit_max:.0f} nm)</p>"
                     copy_chips = "".join(lab_chip_copy_html(d, combined_df.loc[d]) for d in [mix_target_name] + comp_dyes)
                     if copy_chips: html_content += copy_chips + "<br>"
                     html_content += html_table(["Component Name", "Ratio (%)", "Coefficient"],
                                                [(r["Name"], f"{r['Ratio(%)']:.1f}%", f"{r['Coefficient']:.4f}") for _, r in nnls_df.iterrows()])
-                    render_copy_button(html_content, "표 + 예측 결과 복사")
+                    render_copy_button(html_content, "그래프 + 표 + 예측 결과 복사", fig=fig_nnls)
 
             with col_r:
                 with st.container(key="card_mixchart"):
                     sec("타겟 vs 재구성 스펙트럼" + (" · 베이스라인 보정" if use_baseline else ""), "stacked_line_chart")
-                    fig_nnls = go.Figure()
-                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"], mode='lines', name=f"타겟 ({mix_target_name})", line=dict(color=NAVY, width=1.2)))
-                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y_pred"], mode='lines', name="재구성", line=dict(color="#e4572e", width=1.2, dash='dash')))
-                    fig_nnls.add_trace(go.Scatter(x=fit["wl"], y=fit["Y"] - fit["Y_pred"], mode='lines', name="잔차", line=dict(color="#9aa3b2", width=1.2, dash='dot'),
-                                                  fill="tozeroy", fillcolor="rgba(154,163,178,0.12)"))
-                    style_fig(fig_nnls, height=470, x_range=[fit_min, fit_max])
                     st.plotly_chart(fig_nnls, use_container_width=True, config=PLOT_CONFIG)
 
                 chips = "".join(lab_chip_html(d, combined_df.loc[d]) for d in [mix_target_name] + comp_dyes)
