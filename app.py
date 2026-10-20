@@ -613,15 +613,16 @@ def lab_chip_html(name, series, dot_color=None):
             f"<div class='nm'>{dot}{html_lib.escape(str(name))}{tag}</div>"
             f"<div class='lab'>L* {L} · a* {a} · b* {b}</div></div></div>")
 
-def lab_chip_copy_html(name, series):
-    """복사용 색상 칩 (메일·문서에 붙여넣기 좋게 인라인 스타일)"""
+def lab_chip_copy_html(name, series, name_color=None):
+    """복사용 색상 칩 (메일·문서에 붙여넣기 좋게 인라인 스타일) — name_color: 그래프 선 색과 맞춘 이름 글자색"""
     info = get_color_info(name, series)
     if not info: return ""
     L, a, b, rgb, src = info
     tag = "AI 예측" if src == "AI" else "DB"
+    nm_style = f" style='color:{name_color};'" if name_color else ""
     return (f"<table style='border-collapse:collapse;margin:4px 0;font-family:sans-serif;'><tr>"
             f"<td style='width:60px;height:30px;background:{rgb};border:1px solid #ccc;'></td>"
-            f"<td style='padding:0 10px;font-size:13px;'><b>{html_lib.escape(str(name))}</b> ({tag})<br>"
+            f"<td style='padding:0 10px;font-size:13px;'><b{nm_style}>{html_lib.escape(str(name))}</b> ({tag})<br>"
             f"L={L}, a={a}, b={b}</td></tr></table>")
 
 def html_table(headers, rows, first_col_colors=None):
@@ -774,6 +775,46 @@ def series_picker(names, key):
         sel = st.multiselect("표시할 스펙트럼", names, default=names, key=key, label_visibility="collapsed")
     return sel or []
 
+def _exclude_series(state_key, name):
+    st.session_state.setdefault(state_key, []).append(name)
+
+def _restore_series(state_key):
+    st.session_state[state_key] = []
+
+def series_chips(items, state_key):
+    """그래프에 올릴 스펙트럼 칩. 이름 옆 ✕를 누르면 그래프·표·복사에서 아예 빠지고,
+       남은 순서대로 색을 다시 매김 (1번째 검정 · 2번째 빨강 · 3번째 파랑 … = SERIES_COLORS 순서)"""
+    excl = st.session_state.setdefault(state_key, [])
+    shown = [it for it in items if it["name"] not in excl]
+    for i, it in enumerate(shown):
+        it["color"] = SERIES_COLORS[i % len(SERIES_COLORS)]
+
+    box = f"{state_key}_box"
+    rules = [f".st-key-{box} {{ flex-direction: row !important; flex-wrap: wrap !important; gap: 8px !important; align-items: center; }}",
+             f".st-key-{box} > div {{ width: auto !important; flex: 0 0 auto !important; }}"]
+    for i, it in enumerate(shown):
+        c, sel = it["color"], f".st-key-{state_key}_b{i} button"
+        rules += [
+            f"{sel} {{ color: {c} !important; border: 1.5px solid {c} !important; background: {hex_rgba(c, .07)} !important;"
+            f" border-radius: 999px !important; padding: 3px 12px 3px 14px !important; min-height: 34px !important; font-weight: 700 !important; }}",
+            f"{sel}:hover {{ background: {hex_rgba(c, .16)} !important; }}",
+            f"{sel} p {{ color: inherit !important; font-weight: inherit !important; }}",
+            f"{sel}::before {{ content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {c}; margin-right: 7px; flex: none; }}",
+        ]
+    rules.append(f".st-key-{state_key}_restore button {{ border-radius: 999px !important; min-height: 34px !important; color: {MUTED} !important; border-style: dashed !important; }}")
+    st.markdown("<style>" + " ".join(rules) + "</style>", unsafe_allow_html=True)
+
+    with st.container(key=box):
+        for i, it in enumerate(shown):
+            with st.container(key=f"{state_key}_b{i}"):
+                st.button(f"{it['name']}   ✕", key=f"{state_key}_x{i}", help="그래프에서 빼기",
+                          on_click=_exclude_series, args=(state_key, it["name"]))
+        if excl:
+            with st.container(key=f"{state_key}_restore"):
+                st.button(f"↺ 뺀 스펙트럼 다시 넣기 ({len(excl)})", key=f"{state_key}_rs",
+                          on_click=_restore_series, args=(state_key,))
+    return shown
+
 def empty_state(ic, title, desc, steps):
     cells = "".join(f"<div><b>{i}. {t}</b>{d}</div>" for i, (t, d) in enumerate(steps, 1))
     st.markdown(f"<div class='empty'><div class='ic'>{icon(ic)}</div><h3>{title}</h3><p>{desc}</p>"
@@ -854,11 +895,8 @@ if app_mode == "SPEC":
     with col_chart:
         with st.container(key="card_chart"):
             names_all = [it["name"] for it in plot_items_all]
-            picker_key = "vis_" + str(abs(hash(tuple(names_all))))
-            series_picker_css([it["color"] for it in plot_items_all], "serpick")
-            with st.container(key="serpick"):
-                visible = series_picker(names_all, picker_key)
-            active_plot_items = [it for it in plot_items_all if it["name"] in visible]
+            excl_key = "excl_" + str(abs(hash(tuple(names_all))))   # 염료 조합이 바뀌면 '뺀 목록'도 새로 시작
+            active_plot_items = series_chips(plot_items_all, excl_key)
 
             fig = go.Figure()
             fig.add_vrect(x0=fit_min, x1=fit_max, fillcolor="rgba(27,72,157,0.05)", line_width=0,
@@ -883,7 +921,7 @@ if app_mode == "SPEC":
             if active_plot_items:
                 st.plotly_chart(fig, use_container_width=True, config=PLOT_CONFIG)
             else:
-                st.info("위에서 표시할 스펙트럼을 하나 이상 선택하세요.", icon=":material/visibility:")
+                st.info("그래프에 남은 스펙트럼이 없습니다. 위의 '뺀 스펙트럼 다시 넣기'를 누르세요.", icon=":material/visibility:")
 
     # 농도 분석: 분석 구간 전체를 최소제곱으로 맞춘 배율
     plain_summary_text = ""
@@ -932,17 +970,11 @@ if app_mode == "SPEC":
 
                 html_content = "<h3>[실무 분석 요약]</h3>" + CHART_SLOT + "<br>"
                 if plain_summary_text: html_content += f"<p><b>{html_lib.escape(plain_summary_text)}</b></p>"
-                copy_chips = "".join(lab_chip_copy_html(it["name"], it["data"]) for it in active_plot_items)
+                copy_chips = "".join(lab_chip_copy_html(it["name"], it["data"], it["color"]) for it in active_plot_items)
                 if copy_chips: html_content += copy_chips + "<br>"
                 html_content += html_table(["Name", "Peaks (nm)", "Abs (AU)"],
                                            [(n, f"{w:.1f}", f"{a:.5f}") for n, _, w, a in table_rows],
                                            first_col_colors=[c for _, c, _, _ in table_rows])
-                if match_res is not None:
-                    html_content += f"<br><p><b>DB 매칭 후보 상위 5개</b> ({'미분' if use_deriv else '원'} 스펙트럼, {fit_min:.0f}–{fit_max:.0f} nm)</p>"
-                    html_content += html_table(
-                        ["순위", "염료", "형태 점수", "Δλmax (nm)", "타겟 농도", "배율 R²"],
-                        [(i, r["염료"], f"{r['형태 점수']:.4f}", f"{r['Δλmax(nm)']:+.0f}", f"{r['타겟 농도(%)']:.0f}%", f"{r['배율 적합 R²']:.3f}")
-                         for i, r in match_res.head(5).iterrows()])
                 render_copy_button(html_content, "그래프 + 표 + 분석 요약 복사", fig=fig if active_plot_items else None)
 
 
