@@ -640,7 +640,8 @@ def html_table(headers, rows, first_col_colors=None):
             if ci == 0 and first_col_colors and ri < len(first_col_colors):
                 col = first_col_colors[ri]
                 style += f" color: {col}; font-weight: bold;"
-                txt = f"<font color='{col}'><b>{txt}</b></font>"
+                # 워드는 td 색을 무시할 때가 있어 글자 자체에 색을 겹겹이 지정 (font + span)
+                txt = f"<font color='{col}'><span style='color:{col};font-weight:bold;'><b>{txt}</b></span></font>"
             cells.append(f"<td style='{style}'>{txt}</td>")
         out += "<tr>" + "".join(cells) + "</tr>"
     return out + "</table>"
